@@ -1,0 +1,36 @@
+0. What it is?
+You can use this script to parse system call chain and generate system call graph and call report automatically.
+It also support rich overwrite features such as call chain node/edge rename/combine/regroup/delete.
+
+1. Installation
+You should have python3 installed with pip and virtualenv support.
+You should have graphviz installed. (brew update && brew install graphviz)
+
+cd your_working_dir
+virtualenv callchain
+cd callchain
+source bin/activate
+pip install -r requirement.txt
+
+2. Usage
+
+Go to src folder first:
+cd ./src
+
+You should define your own business scenario in scenario.py (following existing definitions, should be straight-forward).
+You may want to add your own parsing rules in scenario.py (for scenario specific cases) or define.py (for common cases). All rules are indeed regular expressions and should be straight-forward.
+You should modify callchain.py to parse your scenario and use your own output folder.
+
+Then run:
+python callchain.py
+
+Get results from your defined output folder and you may want to add more customizations to the graph and report. The re-run the script.
+
+3. Generated files
+callchain.dot			the graph dot file
+callchain.dot.svg		the exported dot graph in svg file
+calls.report.txt		the exported API call report
+original_callchain.txt	the original callchain file
+original_calls.txt		the original API call file
+refined_callchain.txt	the refined callchain file used to generate the dot graph
+refined_calls.txt		the refined API call file used to generate the API call report
