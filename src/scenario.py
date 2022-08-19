@@ -1,6 +1,42 @@
 #!./bin/python
 
 CUSTOM_SCENARIOS = {
+    'StatusChangeTriggerCalcAsfJob': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('LFS-API-LIVE-ID', 'Task.Send', 'StatusChangeTriggerCalcAsfJob', 20, 20),
+        ],
+        'extra_rename_rules': [
+            ('*', 'Task\\.invoke', '*', '*', '*', '*', '1:Task.Invoke'),
+        ],
+        'extra_combine_rules': [],
+        'extra_delete_rules': [
+            ('*', '*', 'FleetOrder', '*', '*', '*'),
+            ('*', '*', 'InvokeGrpcWithHttp', '*', '*', '*'),
+        ],
+        'filter_stack': ['StatusChangeTriggerCalcAsfJob'],
+        'name': 'StatusChangeTriggerCalcAsfJob',
+        'region': 'ID',
+        'reload': False,
+        'enabled': False,
+    },
+    'WeightChangeTriggerCalcAsfJob': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('LFS-API-LIVE-ID', 'Task.Send', 'WeightChangeTriggerCalcAsfJob', 20, 20),
+        ],
+        'extra_rename_rules': [
+        ],
+        'extra_combine_rules': [],
+        'extra_delete_rules': [
+            ('*', '*', 'FleetOrder', '*', '*', '*'),
+        ],
+        'filter_stack': ['WeightChangeTriggerCalcAsfJob'],
+        'name': 'WeightChangeTriggerCalcAsfJob',
+        'region': 'ID',
+        'reload': False,
+        'enabled': False,
+    },
     'lps_processing_routing_log': {
         'entrypoints': [
             # (cat_domain, cat_type, cat_name, sample_count, link_count)
@@ -14,8 +50,8 @@ CUSTOM_SCENARIOS = {
         ],
         'name': 'lps_processing_routing_log',
         'region': 'ID',
-        'reload': True,
-        'enabled': True,
+        'reload': False,
+        'enabled': False,
     },
     'can_update_order_tw': {
         'entrypoints': [

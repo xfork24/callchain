@@ -1,5 +1,5 @@
 #!./bin/python
-
+import copy
 import datetime
 import json
 import random
@@ -25,9 +25,11 @@ class CatDataManager:
                  extra_callchain=None):
         random.seed(time.time())
         self.links = CALLCHAIN_LINK_RULES
+        self.stack_call_rules = STACK_CALL_RULES
         self.parsed_links = set()
         self.parsed_calls = set()
         self.calls = list()
+        self.stacks = list()
         self.call_map = {}
         self.index = 0
         self.output_path = output_path
@@ -74,8 +76,8 @@ class CatDataManager:
         root_df = self.get_sample_message_report(cat_domain, cat_type, cat_name, cat_date, to_root)
         if root_df is None:
             return list()
-        frame_name = root_df.iloc[[0]][1].tolist()[0]
-        return self.parse_callchain(root_df, frame_name)
+        root_frame_name, _ = self.parse_root_frame_name(root_df.iloc[[0]])
+        return self.parse_callchain(root_df, root_frame_name)
 
     def get_callchain(self, cat_domain, cat_type, cat_name, sample_count=1, cat_date=None, to_root=True):
         samples = self.get_sample_messages(cat_domain, cat_type, cat_name, cat_date)
@@ -95,9 +97,14 @@ class CatDataManager:
             root_df = self.get_message_report(m, to_root)
             if root_df is None:
                 continue
-            root_frame_name = root_df.iloc[[0]][1].tolist()[0]
+            root_frame_name, _ = self.parse_root_frame_name(root_df.iloc[[0]])
             all_callchain += self.parse_callchain(root_df, root_frame_name)
         return all_callchain
+
+    def parse_root_frame_name(self, frame):
+        root_frame_name = frame[1].tolist()[0]
+        root_frame_call = frame[2].tolist()[0]
+        return root_frame_name, root_frame_call
 
     def get_callchain_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10, cat_date=None, to_root=True, region='ID'):
         all_callchain = self.get_callchain(cat_domain, cat_type, cat_name, sample_count, cat_date, to_root)
@@ -108,7 +115,7 @@ class CatDataManager:
 
     def get_callchain_and_report_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10, cat_date=None, to_root=True, region='ID'):
         original_callchain = self.get_callchain_with_links(cat_domain, cat_type, cat_name, sample_count, link_sample_count, cat_date, to_root, region)
-        return original_callchain, self.calls
+        return original_callchain, self.calls, self.stacks
 
     def get_message_report(self, message_id, to_root=True):
         url = CAT_API_ENDPOINT + CAT_MESSAGE_SUB_URL.format(message_id)
@@ -130,7 +137,8 @@ class CatDataManager:
             df = self.parse_message_report(response.text)
             return df.iloc[1:]
 
-    def parse_callchain(self, frame_df, frame_name):
+    def parse_callchain(self, frame_df, frame_name, stack=None):
+        cur_stack = list() if stack is None else stack
         callchain = list()
         if frame_df is None:
             return callchain
@@ -143,16 +151,20 @@ class CatDataManager:
             p4 = row[3].tolist()[0]
             evt = cat_event[0]
             if (evt == 't' and cat_type != 'RemoteCall') or evt == 'A':
-                cc = self.get_call_overwrite(cat_event, frame_name, cat_type, cat_name, p3, p4)
-                if cc is not None:
-                    callchain.append(cc)
+                parsed, call = self.get_call_overwrite(cat_event, frame_name, cat_type, cat_name, p3, p4)
+                if parsed is not None:
+                    callchain.append(parsed)
+                if self.is_stack_call(call):
+                    cur_stack.append(call)
+                    self.stacks.append(copy.deepcopy(cur_stack))
             elif evt == '/':
                 next_frame_df = self.get_message_report(cat_type, to_root=False)
                 if frame_df.iloc[[i-1]][1].tolist()[0] == 'RemoteCall':
-                    new_frame_name = frame_df.iloc[[i-2]][1].tolist()[0]
+                    new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-2]])
                 else:
-                    new_frame_name = frame_df.iloc[[i-1]][1].tolist()[0]
-                callchain += self.parse_callchain(next_frame_df, new_frame_name)
+                    new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-1]])
+                cur_stack.append(['-', frame_name, new_frame_name, new_call_name, '', ''])
+                callchain += self.parse_callchain(next_frame_df, new_frame_name, cur_stack)
             elif evt == 'E' or evt == 'T':
                 # ignore events and end of transactions
                 continue
@@ -160,7 +172,22 @@ class CatDataManager:
                 known_types = ['RemoteCall', 'HeartBeat']
                 if cat_type not in known_types and cat_type is not None:
                     log.info('Find unexpected cat record: {0}, {1}, {2}'.format(cat_event, cat_type, cat_name))
+        if stack is None:
+            self.stacks.append(cur_stack)
         return callchain
+
+    def is_stack_call(self, call):
+        matched = True
+        for rule in self.stack_call_rules:
+            for i in range(6):
+                if rule[i] == '*':
+                    continue  # speed up
+                else:
+                    regexp = re.compile(rule[i])
+                    if re.match(regexp, call[i]) is None:
+                        matched = False
+                        break
+        return matched
 
     def parse_callchain_link(self, callchain, link_sample_count=1, cat_date=None, region='ID'):
         links = list()
@@ -184,9 +211,9 @@ class CatDataManager:
                     cat_type = rule[7]
                     cat_name = rule[8]
                     log.info('callchain link rule matched, {0}, {1}'.format(cc, rule))
-                    extra_call = self.get_call_overwrite('-', rule[9], rule[10], rule[11], None, None)
-                    if extra_call is not None:
-                        links.append(extra_call)
+                    parsed, _ = self.get_call_overwrite('-', rule[9], rule[10], rule[11], None, None)
+                    if parsed is not None:
+                        links.append(parsed)
                     samples = self.get_sample_messages(cat_domain, cat_type, cat_name, cat_date)
                     messages = list()
                     if len(samples) < link_sample_count:
@@ -210,9 +237,9 @@ class CatDataManager:
         self.index += 1
         key = '{0}:{1}:{2}'.format(caller, callee, api)
         if key in self.parsed_calls:
-            return None
+            return None, record
         self.parsed_calls.add(key)
-        return record
+        return record, record
 
     def parse_message_report(self, text):
         soup = BeautifulSoup(text, 'html.parser')
@@ -299,7 +326,7 @@ class CallChainParser:
         self.extra_combine_rules = list() if extra_combine_rules is None else extra_combine_rules
         self.extra_delete_rules = list() if extra_delete_rules is None else extra_delete_rules
 
-    def parse_calls(self, calls):
+    def parse_call_count(self, calls):
         call_map = {}
         for call in calls:
             caller = call[1]
@@ -314,6 +341,24 @@ class CallChainParser:
             else:
                 call_map[caller][callee][api] = call_map[caller][callee][api] + 1
         return call_map
+
+    def parse_stack_count(self, stacks):
+        stack_map = {}
+        for stack in stacks:
+            stack_key = ''
+            for call in stack:
+                caller = call[1]
+                callee = call[2]
+                api = call[3]
+                if stack_key == '':
+                    stack_key += '{0}-{1}->{2}'.format(caller, api, callee)
+                else:
+                    stack_key += '-{0}->{1}'.format(api, callee)
+            if stack_key not in stack_map:
+                stack_map[stack_key] = 1
+            else:
+                stack_map[stack_key] = stack_map[stack_key] + 1
+        return stack_map
 
     def refine_callchain(self, callchain):
         callchain = self.refine_rename_rules(callchain)
@@ -331,6 +376,26 @@ class CallChainParser:
             if record is not None:
                 refined_calls.append(record)
         return refined_calls
+
+    def refine_stacks(self, stacks):
+        refined_stacks = list()
+        for stack in stacks:
+            refined_stack = list()
+            for call in stack:
+                refined_call = self.refine_single_call(call)
+                if refined_call is not None:
+                    if len(refined_stack) == 0:
+                        refined_stack.append(refined_call)
+                    else:
+                        stack_top = refined_stack[-1]
+                        if stack_top[2] != refined_call[1]:
+                            refined_stacks.append(copy.deepcopy(refined_stack))
+                            refined_stack = refined_stack[:-1]
+                            refined_stack.append(refined_call)
+                        else:
+                            refined_stack.append(refined_call)
+            refined_stacks.append(refined_stack)
+        return refined_stacks
 
     def refine_single_call(self, callchain):
         callchain = [callchain]
@@ -451,9 +516,10 @@ class CallChainParser:
 
 
 class CallChainRender:
-    def __init__(self, callchain, calls, graph_name='sample', region='ID', load_exist=False, load_original=True, extra_rules=None, output_path=None):
+    def __init__(self, callchain, calls, stacks, graph_name='sample', region='ID', load_exist=False, load_original=True, extra_rules=None, output_path=None):
         self.callchain = callchain
         self.calls = calls
+        self.stacks = stacks
         self.region = region
         self.index = 0
         self.graph_name = graph_name
@@ -461,16 +527,20 @@ class CallChainRender:
         self.callchain_dot_name = sub_folder + 'callchain.dot'
         self.calls_dot_name = sub_folder + 'calls.dot'
         self.calls_report_name = sub_folder + 'calls.report.txt'
+        self.stacks_report_name = sub_folder + 'stacks.report.txt'
         self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
         self.callchain_file_name = sub_folder + 'refined_callchain.txt'
         self.original_calls_file_name = sub_folder + 'original_calls.txt'
         self.calls_file_name = sub_folder + 'refined_calls.txt'
+        self.original_stacks_file_name = sub_folder + 'original_stacks.txt'
+        self.stacks_file_name = sub_folder + 'refined_stacks.txt'
         self.reload_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
         if self.reload_exist:
             self.callchain = CallChainParser(*self.extra_rules).refine_callchain(self.load_exist_callchain())
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
+            self.stacks = CallChainParser(*self.extra_rules).refine_stacks(self.load_exist_stacks())
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -497,8 +567,22 @@ class CallChainRender:
                    edgehref=edge_url if show_link else '')
         return g, self.callchain
 
+    def render_filtered_stacks(self, filter_rules):
+        parsed_stacks = CallChainParser().parse_stack_count(self.stacks)
+        rule_table = list()
+        for rule in filter_rules:
+            stack_table = list()
+            for stack_key, count in parsed_stacks.items():
+                if stack_key.find(rule) != -1:
+                    stack_table.append([stack_key, count])
+            rule_content = tabulate(stack_table, tablefmt='plain')
+            rule_table.append([rule, rule_content])
+        html = tabulate(rule_table, ['Rule', 'Stack'], tablefmt='fancy_grid')
+        with open(self.stacks_report_name, 'w') as f:
+            f.write(html)
+
     def render_calls_v2(self):
-        parsed_calls = CallChainParser().parse_calls(self.calls)
+        parsed_calls = CallChainParser().parse_call_count(self.calls)
         caller_table = list()
         for caller, details in parsed_calls.items():
             callee_table = list()
@@ -517,7 +601,7 @@ class CallChainRender:
     def render_calls(self):
         g = graphviz.Digraph(self.graph_name + '_calls', filename=self.calls_dot_name)
         g.format = 'svg'
-        parsed_calls = CallChainParser().parse_calls(self.calls)
+        parsed_calls = CallChainParser().parse_call_count(self.calls)
         for caller, details in parsed_calls.items():
             sub = graphviz.Digraph(caller)
             sub.engine = 'twopi'
@@ -550,6 +634,10 @@ class CallChainRender:
         with open(self.calls_file_name, 'w') as f:
             f.write(json.dumps(self.calls))
 
+    def save_stacks(self):
+        with open(self.stacks_file_name, 'w') as f:
+            f.write(json.dumps(self.stacks))
+
     def load_exist_callchain(self):
         callchain_file = self.original_callchain_file_name if self.load_original else self.callchain_file_name
         with open(callchain_file, 'r') as f:
@@ -561,3 +649,9 @@ class CallChainRender:
         with open(calls_file, 'r') as f:
             calls = json.loads(f.read(MAX_FILE_READ_LENGTH))
         return calls
+
+    def load_exist_stacks(self):
+        stacks_file = self.original_stacks_file_name if self.load_original else self.stacks_file_name
+        with open(stacks_file, 'r') as f:
+            stacks = json.loads(f.read(MAX_FILE_READ_LENGTH))
+        return stacks

@@ -64,8 +64,8 @@ CALLCHAIN_RENAME_RULES = [
     ('*', 'API\\.c\\-api\\-sellerbasicservice\\.shopeemobile\\.com', '*', '*', '*', '*', '1:SellerBasicService'),
     ('*', '*', 'API\\.c\\-api\\-sellerbasicservice\\.shopeemobile\\.com', '*', '*', '*', '2:SellerBasicService'),
 
-    ('*', '(URL\\.lfs\\-(api|grpc)\\-live\\-*|API\\.lfs\\-grpc\\-live\\-*|API\\.api\\.lfs\\.shopee\\.co\\.*|API\\.lfs\\-checkoutgrpc\\-*|API\\.api\\.lfs\\.shopee\\.*)', '*', '*', '*', '*', '1:LFS'),
-    ('*', '*', '(URL\\.lfs\\-(api|grpc)\\-live\\-*|API\\.lfs\\-grpc\\-live\\-*|API\\.api\\.lfs\\.shopee\\.co\\.*|API\\.lfs\\-checkoutgrpc\\-*|API\\.api\\.lfs\\.shopee\\.*)', '*', '*', '*', '2:LFS'),
+    ('*', '(URL\\.lfs\\-(api|grpc)\\-live\\-*|API\\.lfs\\-grpc\\-live\\-*|API\\.api\\.lfs\\.shopee\\.co\\.*|API\\.lfs\\-checkoutgrpc\\-*|API\\.api\\.lfs\\.shopee\\.*|API\\.lfs\\-grpc\\.ssc\\.shopee\\.co\\.*)', '*', '*', '*', '*', '1:LFS'),
+    ('*', '*', '(URL\\.lfs\\-(api|grpc)\\-live\\-*|API\\.lfs\\-grpc\\-live\\-*|API\\.api\\.lfs\\.shopee\\.co\\.*|API\\.lfs\\-checkoutgrpc\\-*|API\\.api\\.lfs\\.shopee\\.*|API\\.lfs\\-grpc\\.ssc\\.shopee\\.co\\.*)', '*', '*', '*', '2:LFS'),
 
     ('*', '(API\\.fleet\\-order\\.ssc\\.shopee\\.co\\.*|fleet_order_read_facade\\.Gray|Fleet_Order_Client)', '*', '*', '*', '*', '1:FleetOrder'),
     ('*', '*', '(API\\.fleet\\-order\\.ssc\\.shopee\\.co\\.*|fleet_order_read_facade\\.Gray|Fleet_Order_Client)', '*', '*', '*', '2:FleetOrder'),
@@ -175,7 +175,9 @@ CALLCHAIN_HIDE_INFRA_DELETE_RULES = [
     ('*', '*', 'LruCache', '*', '*', '*'),
 ]
 
-CALLCHAIN_LINK_RULES = {
+CALLCHAIN_LINK_RULES = {}
+
+DEFAULT_CALLCHAIN_LINK_RULES = {
     # (event_id, caller, callee, api, *, *, cat_domain, cat_type, cat_name, new_caller, new_callee, new_api)
     1: ('*', '(URL\\.lfs\\-(api|grpc)\\-live\\-*|API\\.lfs\\-grpc\\-live\\-*|API\\.api\\.lfs\\.shopee\\.co\\.*|API\\.lfs\\-checkoutgrpc\\-*|API\\.api\\.lfs\\.shopee\\.*)', 'Task\\.Send', 'OrderCreateJob', '*', '*',
         'LFS-TASK-LIVE-{0}', 'Task.Invoke', 'OrderCreate/OrderCreateJob',
@@ -295,6 +297,10 @@ CALLCHAIN_LINK_RULES = {
           'pis-partnerintegrationtask-live-{0}', 'Task', 'ConsumeTrackingPushMessage',
           'PIS-Saturn', 'ConsumeTrackingPushMessage', 'ConsumeTrackingPushMessage'),
 }
+
+STACK_CALL_RULES = [
+    ('*', '*', 'Task\\.Send', '*', '*', '*'),
+]
 
 API_CALL_MAP = {
 }
