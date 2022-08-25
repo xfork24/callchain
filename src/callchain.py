@@ -1,6 +1,6 @@
 #!./bin/python
 
-from scenario import *
+from fulfillment_scenarios import FULFILLMENT_SCENARIOS
 
 from define import log
 from cat import (
@@ -14,8 +14,8 @@ import json
 
 if __name__ == '__main__':
     # check the following two lines first before running.
-    all_scenarios = [CUSTOM_SCENARIOS]
-    sub_folder_name = 'custom_scenarios'
+    all_scenarios = [FULFILLMENT_SCENARIOS]
+    sub_folder_name = 'fulfillment_scenarios'
 
     for scenarios in all_scenarios:
         for name, scenario in scenarios.items():
@@ -27,10 +27,12 @@ if __name__ == '__main__':
             scenario_path = '../{0}/{1}/{2}/'.format(sub_folder_name, scenario['region'], scenario['name'])
             if not os.path.exists(scenario_path):
                 os.makedirs(scenario_path, exist_ok=True)
-            extra_rename_rules = scenario['extra_rename_rules'] if 'extra_rename_rules' in scenario else list()
-            extra_combine_rules = scenario['extra_combine_rules'] if 'extra_combine_rules' in scenario else list()
-            extra_delete_rules = scenario['extra_delete_rules'] if 'extra_delete_rules' in scenario else list()
-            rules = (extra_rename_rules, extra_combine_rules, extra_delete_rules)
+            extra_node_overwrite_rules = scenario['extra_node_overwrite_rules'] if 'extra_node_overwrite_rules' in scenario else None
+            extra_edge_overwrite_rules = scenario['extra_edge_overwrite_rules'] if 'extra_edge_overwrite_rules' in scenario else None
+            extra_rename_rules = scenario['extra_rename_rules'] if 'extra_rename_rules' in scenario else None
+            extra_combine_rules = scenario['extra_combine_rules'] if 'extra_combine_rules' in scenario else None
+            extra_delete_rules = scenario['extra_delete_rules'] if 'extra_delete_rules' in scenario else None
+            extra_rules = (extra_node_overwrite_rules, extra_edge_overwrite_rules, extra_rename_rules, extra_combine_rules, extra_delete_rules)
             if reload:
                 log.info('Processing scenario with reload: {0}'.format(name))
                 callchain = list()
@@ -41,10 +43,10 @@ if __name__ == '__main__':
                 stacks = list()
                 original_stacks = list()
                 for entrypoint in scenario['entrypoints']:
-                    occ, ocl, oss = CatDataManager(scenario_path, extra_callchain).get_callchain_and_report_with_links(*entrypoint)
-                    cc = CallChainParser(*rules).refine_callchain(occ)
-                    cl = CallChainParser(*rules).refine_calls(ocl)
-                    ss = CallChainParser(*rules).refine_stacks(oss)
+                    occ, ocl, oss = CatDataManager(scenario_path, extra_callchain, extra_rules).get_callchain_and_report_with_links(*entrypoint)
+                    cc = CallChainParser(*extra_rules).refine_callchain(occ)
+                    cl = CallChainParser(*extra_rules).refine_calls(ocl)
+                    ss = CallChainParser(*extra_rules).refine_stacks(oss)
                     callchain += cc
                     calls += cl
                     stacks += ss
@@ -57,11 +59,11 @@ if __name__ == '__main__':
                     f.write(json.dumps(original_calls))
                 with open(scenario_path + 'original_stacks.txt', 'w') as f:
                     f.write(json.dumps(original_stacks))
-                callchain = CallChainParser(*rules).refine_callchain(callchain)
+                callchain = CallChainParser(*extra_rules).refine_callchain(callchain)
                 ccr = CallChainRender(callchain, calls, stacks, scenario['name'], region=scenario['region'], output_path=scenario_path)
             else:
                 log.info('Processing scenario without reload: {0}'.format(name))
-                ccr = CallChainRender(None, None, None, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=rules, output_path=scenario_path)
+                ccr = CallChainRender(None, None, None, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=extra_rules, output_path=scenario_path)
             ccr.save_callchain()
             ccr.save_calls()
             ccr.save_stacks()

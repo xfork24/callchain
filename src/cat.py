@@ -12,6 +12,7 @@ import jsonpath_ng as jp
 import pandas as pd
 from bs4 import BeautifulSoup
 from define import *
+from rule import *
 
 
 """
@@ -22,10 +23,11 @@ from define import *
 """
 class CatDataManager:
     def __init__(self, output_path='./output',
-                 extra_callchain=None):
+                 extra_callchain=None,
+                 extra_rules=None,
+                 links=None):
         random.seed(time.time())
-        self.links = DEFAULT_CALLCHAIN_LINK_RULES
-        self.stack_call_rules = STACK_CALL_RULES
+        self.callstack_end_rules = CALLSTACK_END_RULES
         self.parsed_links = set()
         self.parsed_calls = set()
         self.calls = list()
@@ -34,6 +36,8 @@ class CatDataManager:
         self.index = 0
         self.output_path = output_path
         self.extra_callchain = list() if extra_callchain is None else extra_callchain
+        self.extra_rules = [None, None, None, None, None] if extra_rules is None else extra_rules
+        self.links = CALLCHAIN_LINK_RULES if links is None else links
 
     def get_sample_messages(self, cat_domain, cat_type, cat_name, cat_date=None):
         if cat_date is None:
@@ -154,7 +158,7 @@ class CatDataManager:
                 parsed, call = self.get_call_overwrite(cat_event, frame_name, cat_type, cat_name, p3, p4)
                 if parsed is not None:
                     callchain.append(parsed)
-                if self.is_stack_call(call):
+                if self.is_callstack_ended(call):
                     cur_stack.append(call)
                     self.stacks.append(copy.deepcopy(cur_stack))
             elif evt == '/':
@@ -179,9 +183,9 @@ class CatDataManager:
             self.stacks.append(cur_stack)
         return callchain
 
-    def is_stack_call(self, call):
+    def is_callstack_ended(self, call):
         matched = True
-        for rule in self.stack_call_rules:
+        for rule in self.callstack_end_rules:
             for i in range(6):
                 if rule[i] == '*':
                     continue  # speed up
@@ -193,6 +197,7 @@ class CatDataManager:
         return matched
 
     def parse_callchain_link(self, callchain, link_sample_count=1, cat_date=None, region='ID'):
+        callchain = CallChainParser(*self.extra_rules).refine_callchain(callchain)
         links = list()
         for rule_id, rule in self.links.items():
             for cc in callchain:
@@ -324,7 +329,9 @@ class CatDataManager:
 
 
 class CallChainParser:
-    def __init__(self, extra_rename_rules=None, extra_combine_rules=None, extra_delete_rules=None):
+    def __init__(self, extra_node_overwrite_rules=None, extra_edge_overwrite_rules=None, extra_rename_rules=None, extra_combine_rules=None, extra_delete_rules=None):
+        self.extra_node_overwrite_rules = {} if extra_node_overwrite_rules is None else extra_node_overwrite_rules
+        self.extra_edge_overwrite_rules = {} if extra_edge_overwrite_rules is None else extra_edge_overwrite_rules
         self.extra_rename_rules = list() if extra_rename_rules is None else extra_rename_rules
         self.extra_combine_rules = list() if extra_combine_rules is None else extra_combine_rules
         self.extra_delete_rules = list() if extra_delete_rules is None else extra_delete_rules
@@ -364,6 +371,8 @@ class CallChainParser:
         return stack_map
 
     def refine_callchain(self, callchain):
+        callchain = self.refine_node_overwrite_rules(callchain)
+        callchain = self.refine_edge_overwrite_rules(callchain)
         callchain = self.refine_rename_rules(callchain)
         callchain = self.refine_combine_rules(callchain)
         callchain = self.refine_delete_rules(callchain)
@@ -402,14 +411,46 @@ class CallChainParser:
 
     def refine_single_call(self, callchain):
         callchain = [callchain]
+        callchain = self.refine_node_overwrite_rules(callchain)
+        callchain = self.refine_edge_overwrite_rules(callchain)
         callchain = self.refine_rename_rules(callchain)
         callchain = self.refine_delete_rules(callchain)
         callchain = self.refine_remove_reentry(callchain)
         callchain = self.refine_hide_infra_delete_rules(callchain)
         return callchain[0] if len(callchain) != 0 else None
 
+    def refine_node_overwrite_rules(self, callchain):
+        refined = callchain
+        for rules in [self.extra_node_overwrite_rules, CALLCHAIN_NODE_OVERWRITE_RULES]:
+            for rule, overwrite in rules.items():
+                refined = list()
+                for cc in callchain:
+                    cc_new = list(cc)
+                    regexp = re.compile(rule)
+                    if re.match(regexp, cc[1]) is not None:
+                        cc_new[1] = overwrite
+                    if re.match(regexp, cc[2]) is not None:
+                        cc_new[2] = overwrite
+                    refined.append(cc_new)
+                callchain = refined
+        return refined
+
+    def refine_edge_overwrite_rules(self, callchain):
+        refined = callchain
+        for rules in [self.extra_edge_overwrite_rules, CALLCHAIN_EDGE_OVERWRITE_RULES]:
+            for rule, overwrite in rules.items():
+                refined = list()
+                for cc in callchain:
+                    cc_new = list(cc)
+                    regexp = re.compile(rule)
+                    if re.match(regexp, cc[3]) is not None:
+                        cc_new[3] = overwrite
+                    refined.append(cc_new)
+                callchain = refined
+        return refined
+
     def refine_rename_rules(self, callchain):
-        refined = list()
+        refined = callchain
         for rules in [self.extra_rename_rules, CALLCHAIN_RENAME_RULES]:
             for rule in rules:
                 refined = list()
@@ -434,7 +475,7 @@ class CallChainParser:
         return refined
 
     def refine_combine_rules(self, callchain):
-        refined = list()
+        refined = callchain
         for rules in [self.extra_combine_rules, CALLCHAIN_COMBINE_RULES]:
             for rule in rules:
                 refined = list()
@@ -458,7 +499,7 @@ class CallChainParser:
         return refined
 
     def refine_delete_rules(self, callchain):
-        refined = list()
+        refined = callchain
         for rules in [self.extra_delete_rules, CALLCHAIN_DELETE_RULES]:
             for rule in rules:
                 refined = list()
@@ -478,7 +519,7 @@ class CallChainParser:
         return refined
 
     def refine_hide_infra_delete_rules(self, callchain):
-        refined = list()
+        refined = callchain
         for rule in CALLCHAIN_HIDE_INFRA_DELETE_RULES:
             refined = list()
             for cc in callchain:
