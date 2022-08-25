@@ -9,20 +9,11 @@ FULFILLMENT_SCENARIOS = {
         'extra_callchain': [
         ],
         'extra_rename_rules': [
-            ('*',
-             '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*|API\\.sls\\-partnerintegrationservice-*)',
-             '*', '*', '*', '*', '1:PIS'),
-            ('*', '*',
-             '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*|API\\.sls\\-partnerintegrationservice-*)',
-             '*', '*', '*', '2:PIS'),
-            ('*', 'PIS', '*', 'https://waybillcenter\\.ssc\\.shopee\\.co\\.*', '*', '*', '2:WBC'),
-            ('*', 'PIS', '*', 'https://spx\\.shopee\\.co\\.*', '*', '*', '2:SPX'),
+            ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', '2:LTS;3:DoTrackingExceptionAndMapAndDesc'),
         ],
         'extra_delete_rules': [
-            ('*', 'SmartRouting', 'SelectLane', '*', '*', '*'),
-            ('*', '*', 'TrackingOperate|TrackingAssemble', '*', '*', '*'),
-            ('*', '*', 'GetTrackingFromLTS|ActualShippingFee', '*', '*', '*'),
-            ('*', '*', 'ResourceAPI', '*', '*', '*'),
+            ('*', 'OrderCreatedTrackingUpdateJob', 'GetTrackingFromLTS', '*', '*', '*'),
+            ('*', 'SmartRouting', '*', '*', '*', '*'),
             ('*', 'OMS', '*', '*', '*', '*'),
         ],
         'filter_stack': ['/api/sls-basic/freight/calc_esf_weight/', 'calculateWeightBySdk'],
@@ -62,7 +53,7 @@ end box
 """,
         'name': 'create_order',
         'region': 'ID',
-        'reload': True,
+        'reload': False,
         'enabled': True,
     },
 }

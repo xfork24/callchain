@@ -221,7 +221,7 @@ CALLCHAIN_LINK_RULES = {
 }
 
 CALLSTACK_END_RULES = [
-    ('*', '*', 'Task\\.Send', '*', '*', '*'),
+    'Saturn', 'Celery',
 ]
 
 API_CALL_MAP = {

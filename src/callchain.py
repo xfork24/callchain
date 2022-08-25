@@ -38,32 +38,25 @@ if __name__ == '__main__':
                 callchain = list()
                 original_callchain = list()
                 extra_callchain = scenario['extra_callchain'] if 'extra_callchain' in scenario else list()
-                calls = list()
+                refined_calls = list()
                 original_calls = list()
-                stacks = list()
-                original_stacks = list()
                 for entrypoint in scenario['entrypoints']:
-                    occ, ocl, oss = CatDataManager(scenario_path, extra_callchain, extra_rules).get_callchain_and_report_with_links(*entrypoint)
+                    occ, ocl = CatDataManager(scenario_path, extra_callchain, extra_rules).get_callchain_and_report_with_links(*entrypoint)
                     cc = CallChainParser(*extra_rules).refine_callchain(occ)
                     cl = CallChainParser(*extra_rules).refine_calls(ocl)
-                    ss = CallChainParser(*extra_rules).refine_stacks(oss)
                     callchain += cc
-                    calls += cl
-                    stacks += ss
+                    refined_calls += cl
                     original_callchain += occ
                     original_calls += ocl
-                    original_stacks += oss
                 with open(scenario_path + 'original_callchain.txt', 'w') as f:
                     f.write(json.dumps(original_callchain))
                 with open(scenario_path + 'original_calls.txt', 'w') as f:
                     f.write(json.dumps(original_calls))
-                with open(scenario_path + 'original_stacks.txt', 'w') as f:
-                    f.write(json.dumps(original_stacks))
-                callchain = CallChainParser(*extra_rules).refine_callchain(callchain)
-                ccr = CallChainRender(callchain, calls, stacks, scenario['name'], region=scenario['region'], output_path=scenario_path)
+                refined_callchain = CallChainParser(*extra_rules).refine_callchain(callchain)
+                ccr = CallChainRender(refined_callchain, refined_calls, scenario['name'], region=scenario['region'], output_path=scenario_path)
             else:
                 log.info('Processing scenario without reload: {0}'.format(name))
-                ccr = CallChainRender(None, None, None, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=extra_rules, output_path=scenario_path)
+                ccr = CallChainRender(None, None, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=extra_rules, output_path=scenario_path)
             ccr.save_callchain()
             ccr.save_calls()
             ccr.save_stacks()
