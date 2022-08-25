@@ -25,8 +25,8 @@ CALLCHAIN_RENAME_RULES = [
 
     ('*', '(OrderCreateJob|UpdateLogisticInfoToOmsJob)', 'Task\\.Retry', '(OrderCreate/OrderCreateJob|OrderTnNotify/UpdateLogisticInfoToOmsJob)', '*', '*', '2:Saturn'),
 
-    ('*', '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*)', '*', '*', '*', '*', '1:PIS'),
-    ('*', '*', '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*)', '*', '*', '*', '2:PIS'),
+    ('*', '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*|API\\.sls\\-partnerintegrationservice-*)', '*', '*', '*', '*', '1:PIS'),
+    ('*', '*', '(API\\.partner\\-integration\\.ssc\\.shopee\\.co\\.*|API\\.lpis\\-checkout\\.ssc\\.shopee\\.*|API\\.sls\\-partnerintegrationservice-*)', '*', '*', '*', '2:PIS'),
 
     ('*', '(API\\.api\\.sls\\.shopee\\.com\\.*|API\\.api\\.sls\\.shopee\\.*)', '*', '*', '*', '*', '1:SLS-Logistics'),
     ('*', '*', '(API\\.api\\.sls\\.shopee\\.com\\.*|API\\.api\\.sls\\.shopee\\.*)', '*', '*', '*', '2:SLS-Logistics'),
@@ -49,14 +49,14 @@ CALLCHAIN_RENAME_RULES = [
     ('*', '(API\\.logistics\\-api\\.shopee\\.co\\.*|API\\.logistics\\-api\\.shopee\\.com\\.*|API\\.logistics\\-api\\.shopee\\.*)', '*', '*', '*', '*', '1:LogisticsAPI'),
     ('*', '*', '(API\\.logistics\\-api\\.shopee\\.co\\.*|API\\.logistics\\-api\\.shopee\\.com\\.*|API\\.logistics\\-api\\.shopee\\.*)', '*', '*', '*', '2:LogisticsAPI'),
 
-    ('*', '(API.sls\\-rateapi\\-live\\-*|API\\.sls\\-rateapi\\-live\\-*)', '*', '*', '*', '*', '1:RateAPI'),
-    ('*', '*', '(API.sls\\-rateapi\\-live\\-*|API\\.sls\\-rateapi\\-live\\-*)', '*', '*', '*', '2:RateAPI'),
+    ('*', '(API.sls\\-rateapi\\-live\\-*|API\\.sls\\-rateapi\\-live\\-*|API\\.rate\\-checkout\\.ssc\\.shopee\\.co\\.*|API\\.rate\\.ssc\\.shopee\\.co\\.*)', '*', '*', '*', '*', '1:RateAPI'),
+    ('*', '*', '(API.sls\\-rateapi\\-live\\-*|API\\.sls\\-rateapi\\-live\\-*|API\\.rate\\-checkout\\.ssc\\.shopee\\.co\\.*|API\\.rate\\.ssc\\.shopee\\.co\\.*)', '*', '*', '*', '2:RateAPI'),
 
     ('*', '(API\\.sls\\-rateapioffline\\-live\\-*)', '*', '*', '*', '*', '1:RateAPI-Offline'),
     ('*', '*', '(API\\.sls\\-rateapioffline\\-live\\-*)', '*', '*', '*', '2:RateAPI-Offline'),
 
-    ('*', '(API\\.oms\\.shopee\\.co\\.id|API\\.oms\\-parcelapi\\-live\\-id)', '*', '*', '*', '*', '1:OMS'),
-    ('*', '*', '(API\\.oms\\.shopee\\.co\\.id|API\\.oms\\-parcelapi\\-live\\-id)', '*', '*', '*', '2:OMS'),
+    ('*', '(API\\.oms\\.shopee\\.co\\.id|API\\.oms\\-parcelapi\\-live\\-id|API\\.oms\\-logisticscommonset\\-live\\-*|API\\.oms\\-parcelcommonset\\-live\\-*)', '*', '*', '*', '*', '1:OMS'),
+    ('*', '*', '(API\\.oms\\.shopee\\.co\\.id|API\\.oms\\-parcelapi\\-live\\-id|API\\.oms\\-logisticscommonset\\-live\\-*|API\\.oms\\-parcelcommonset\\-live\\-*)', '*', '*', '*', '2:OMS'),
 
     ('*', '(API\\.sls\\-locationgrpc\\-live\\-*|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.co\\.*|SlsLocation|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.*|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.*)', '*', '*', '*', '*', '1:SLS-Location'),
     ('*', '*', '(API\\.sls\\-locationgrpc\\-live\\-*|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.co\\.*|SlsLocation|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.*|API\\.sls\\-locationgrpc\\.ssc\\.shopee\\.*)', '*', '*', '*', '2:SLS-Location'),
@@ -111,7 +111,7 @@ CALLCHAIN_RENAME_RULES = [
 
     ('*', '*', 'RabbitMQ\\.rabbitmq\\.i\\.ssc\\-2\\.ctl\\.sz\\.shopee\\.io', '*', '*', '*', '2:RabbitMQ'),
 
-    ('*', '*', '(LocalCacheReport|LocalCache|LayerCache|LayeredCache|Cache|Redis\\.proxy\\.cache\\-codis[0-9]\\-ctl\\.i\\.sz\\.shopee\\.io|Redis:proxy\\.cache\\-codis[0-9]\\-ctl.i.sz.shopee.io:*)', '*', '*', '*', '2:Redis'),
+    ('*', '*', '(LocalCacheReport|LocalCache|LayerCache|LayeredCache|Cache|Redis\\.proxy\\.cache\\-codis[0-9]\\-ctl\\.i\\.sz\\.shopee\\.io|Redis:proxy\\.cache\\-codis[0-9]\\-ctl.i.sz.shopee.io:*|RateLimit)', '*', '*', '*', '2:Redis'),
     ('*', '*', '^(MySQL:*|CdtDbQueryTimes|CdtGetInfo)$', '*', '*', '*', '2:MySQL'),
     ('*', '*', '^(PN\\-Kafka|WBC\\-Kafka)$', '*', '*', '*', '2:Kafka'),
     ('*', '*', '^Es$', '*', '*', '*', '2:ElasticSearch'),

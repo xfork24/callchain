@@ -24,7 +24,7 @@ class CatDataManager:
     def __init__(self, output_path='./output',
                  extra_callchain=None):
         random.seed(time.time())
-        self.links = CALLCHAIN_LINK_RULES
+        self.links = DEFAULT_CALLCHAIN_LINK_RULES
         self.stack_call_rules = STACK_CALL_RULES
         self.parsed_links = set()
         self.parsed_calls = set()
@@ -160,7 +160,10 @@ class CatDataManager:
             elif evt == '/':
                 next_frame_df = self.get_message_report(cat_type, to_root=False)
                 if frame_df.iloc[[i-1]][1].tolist()[0] == 'RemoteCall':
-                    new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-2]])
+                    if frame_df.iloc[[i-2]][1].tolist()[0] == 'RateLimit':
+                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-3]])
+                    else:
+                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-2]])
                 else:
                     new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-1]])
                 cur_stack.append(['-', frame_name, new_frame_name, new_call_name, '', ''])
@@ -534,6 +537,7 @@ class CallChainRender:
         self.calls_file_name = sub_folder + 'refined_calls.txt'
         self.original_stacks_file_name = sub_folder + 'original_stacks.txt'
         self.stacks_file_name = sub_folder + 'refined_stacks.txt'
+        self.puml_file_name = sub_folder + 'sequence_diagram.uml'
         self.reload_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
@@ -542,6 +546,25 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
             self.stacks = CallChainParser(*self.extra_rules).refine_stacks(self.load_exist_stacks())
 
+    def generate_plantuml_script(self, head, tail):
+        with open(self.puml_file_name, 'w') as f:
+            f.write(head)
+            call_stack = list()
+            for cc in self.callchain:
+                if len(call_stack) > 0:
+                    if cc[1] == call_stack[-1]:
+                        call_stack.append(cc[2])
+                    else:
+                        while len(call_stack) > 0 and call_stack[-1] != cc[1]:
+                            f.write('return response\n')
+                            call_stack = call_stack[:-1]
+                        call_stack.append(cc[2])
+                else:
+                    call_stack.append(cc[1])
+                    call_stack.append(cc[2])
+                f.write('{0} -> {1} ++: {2}\n'.format(cc[1], cc[2], cc[3]))
+            f.write(tail)
+
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
         g.format = 'svg'
@@ -549,7 +572,7 @@ class CallChainRender:
             edge_url = self.parse_edge_url(item[1], item[2], item[3])
             if show_label and show_order:
                 if len(item) > 6:
-                    label = '{0}-{1}'.format(item[6], item[3])
+                    label = '{0}[{1}]'.format(item[3], item[6])
                 else:
                     label = item[3]
             elif show_label:
