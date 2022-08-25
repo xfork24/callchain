@@ -573,20 +573,26 @@ class CallChainRender:
     def generate_plantuml_script(self, head, tail):
         with open(self.puml_file_name, 'w') as f:
             f.write(head)
-            call_stack = list()
+            cur_stack = list()
+            root_frame = None if len(self.callchain) == 0 else self.callchain[0][1]
             for cc in self.callchain:
-                if len(call_stack) > 0:
-                    if cc[1] == call_stack[-1]:
-                        call_stack.append(cc[2])
+                if len(cur_stack) > 0:
+                    if cc[1] == cur_stack[-1]:
+                        cur_stack.append(cc[2])
                     else:
-                        while len(call_stack) > 0 and call_stack[-1] != cc[1]:
-                            f.write('return response\n')
-                            call_stack = call_stack[:-1]
-                        call_stack.append(cc[2])
+                        while len(cur_stack) > 0 and cur_stack[-1] != cc[1]:
+                            if not (len(cur_stack) == 1 and cur_stack[0] == root_frame):
+                                f.write('return response\n')
+                            cur_stack = cur_stack[:-1]
+                        cur_stack.append(cc[2])
                 else:
-                    call_stack.append(cc[1])
-                    call_stack.append(cc[2])
+                    cur_stack.append(cc[1])
+                    cur_stack.append(cc[2])
                 f.write('{0} -> {1} ++: {2}\n'.format(cc[1], cc[2], cc[3]))
+                if cur_stack[-1] in CALLSTACK_END_RULES:
+                    f.write('return response\n')
+                    cur_stack = cur_stack[:-1]
+            f.write('return response\n')
             f.write(tail)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):

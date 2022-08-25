@@ -10,9 +10,12 @@ FULFILLMENT_SCENARIOS = {
         ],
         'extra_rename_rules': [
             ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', '2:LTS;3:DoTrackingExceptionAndMapAndDesc'),
+            ('*', 'PIS', '(api|ResourceAPI)', '*', '*', '*', '2:3PL'),
         ],
         'extra_delete_rules': [
             ('*', 'OrderCreatedTrackingUpdateJob', 'GetTrackingFromLTS', '*', '*', '*'),
+            ('*', 'StatusChangeTriggerCalcAsfJob', 'ActualShippingFee', 'StatusChangedTriggerASF', '*', '*'),
+            ('*', '*', 'TrackingOperate', '*', '*', '*'),
             ('*', 'SmartRouting', '*', '*', '*', '*'),
             ('*', 'OMS', '*', '*', '*', '*'),
         ],
@@ -20,20 +23,22 @@ FULFILLMENT_SCENARIOS = {
         'puml_head': """
 @startuml
 
-box "SLS"
+box "SLS Synchronous API Call"
 participant LPS
+participant WBC
+participant SmartRouting
 participant LFS
 participant LLS
-participant LCOS
-participant PIS
-participant RateAPI
 participant LCS
+participant PIS
+participant LCOS
 participant IDCS
-participant WBC
+participant RateAPI
+participant LTS
 participant TrackingPN
 end box
 
-box "SLS Async"
+box "SLS Asynchronous Jobs"
 participant OrderCreateJob
 participant UpdateLogisticInfoToOmsJob
 participant PushOmsTrackingWithoutStatusJob
@@ -42,10 +47,14 @@ participant StatusChangeTriggerCalcAsfJob
 participant Calc3plEsfJob
 end box
 
-box "External"
+box "SSC External Dependencies"
 participant Saturn
 participant SPX
 participant OMS
+end box
+
+box "3rd-party Dependencies"
+participant 3PL
 end box
 """,
         'puml_tail': """
