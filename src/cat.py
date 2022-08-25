@@ -383,6 +383,8 @@ class CallChainParser:
                     stacks.append(copy.deepcopy(cur_stack))
                     while len(cur_stack) > 0 and cur_stack[-1][0] != cc[1]:
                         cur_stack = cur_stack[:-1]
+                    if len(cur_stack) > 0:
+                        cur_stack[-1] = (cc[1], cc[3])
                     cur_stack.append((cc[2], None))
             else:
                 cur_stack.append((cc[1], cc[3]))
@@ -559,7 +561,7 @@ class CallChainRender:
         self.calls_file_name = sub_folder + 'refined_calls.txt'
         self.original_stacks_file_name = sub_folder + 'original_stacks.txt'
         self.stacks_report_name = sub_folder + 'stacks.report.txt'
-        self.puml_file_name = sub_folder + 'sequence_diagram.uml'
+        self.puml_file_name = sub_folder + 'sequence.uml'
         self.reload_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
