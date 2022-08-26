@@ -19,7 +19,7 @@ FULFILLMENT_SCENARIOS = {
             ('*', 'SmartRouting', '*', '*', '*', '*'),
             ('*', 'OMS', '*', '*', '*', '*'),
         ],
-        'filter_stack': ['/api/sls-basic/freight/calc_esf_weight/', 'calculateWeightBySdk'],
+        'filter_stack': ['/api/sls-basic/freight/calc_esf_weight/', 'calculateWeightBySdk', 'CreateLineWaybill'],
         'puml_head': """
 @startuml
 
