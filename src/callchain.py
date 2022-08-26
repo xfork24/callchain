@@ -65,4 +65,4 @@ if __name__ == '__main__':
             ccr.render_calls_v2()
             filter_rules = scenario['filter_stack'] if 'filter_stack' in scenario else list()
             ccr.render_filtered_stacks(filter_rules)
-            ccr.generate_plantuml_script(scenario['puml_head'], scenario['puml_tail'])
+            ccr.generate_plantuml_script()

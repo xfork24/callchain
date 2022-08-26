@@ -15,3 +15,20 @@ DEFAULT_OUTPUT_SUB_FOLDER_NAME = 'scenarios'
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 log = logging.getLogger('root')
+
+SLS_SERVICE_GROUPS = {
+    'SLS Gateway': ['LPS'],
+    'SLS Core Fulfillment Capability': ['LFS', 'LLS', 'SmartRouting'],
+    'SLS Tracking': ['LTS', 'TrackingPN'],
+    'SLS Basic Capability': ['LCOS', 'WBC', 'IDCS'],
+    'SLS 3PL Gateway': ['LCS', 'PIS'],
+    'SSC Finance': ['RateAPI'],
+    'Async Jobs': ['OrderCreateJob',
+                   'UpdateLogisticInfoToOmsJob',
+                   'PushOmsTrackingWithoutStatusJob',
+                   'OrderCreatedTrackingUpdateJob',
+                   'StatusChangeTriggerCalcAsfJob',
+                   'Calc3plEsfJob'],
+    'External Dependencies': ['Saturn', 'SPX', 'OMS'],
+    '3PL Dependencies': ['3PL'],
+}

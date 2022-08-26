@@ -391,6 +391,19 @@ class CallChainParser:
                 cur_stack.append((cc[2], None))
         return stacks
 
+    def parse_service_groups(self, callchain):
+        service_groups = {}
+        for name, services in SLS_SERVICE_GROUPS.items():
+            for cc in callchain:
+                for idx in range(1, 3):
+                    if cc[idx] in services:
+                        if name not in service_groups:
+                            service_groups[name] = [cc[idx]]
+                        else:
+                            if cc[idx] not in service_groups[name]:
+                                service_groups[name].append(cc[idx])
+        return service_groups
+
     def refine_single_call(self, callchain):
         callchain = [callchain]
         callchain = self.refine_node_overwrite_rules(callchain)
@@ -570,9 +583,15 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks(self.callchain)
 
-    def generate_plantuml_script(self, head, tail):
+    def generate_plantuml_script(self):
+        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain)
         with open(self.puml_file_name, 'w') as f:
-            f.write(head)
+            f.write('@startuml\n\n')
+            for name, services in service_groups.items():
+                f.write('box "{0}"\n'.format(name))
+                for service in services:
+                    f.write('participant {0}\n'.format(service))
+                f.write('end box\n\n')
             cur_stack = list()
             root_frame = None if len(self.callchain) == 0 else self.callchain[0][1]
             for cc in self.callchain:
@@ -592,8 +611,8 @@ class CallChainRender:
                 if cur_stack[-1] in CALLSTACK_END_RULES:
                     f.write('return response\n')
                     cur_stack = cur_stack[:-1]
-            f.write('return response\n')
-            f.write(tail)
+            f.write('return response\n\n')
+            f.write('@enduml\n')
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -621,7 +640,7 @@ class CallChainRender:
         return g, self.callchain
 
     def render_filtered_stacks(self, filter_rules):
-        parsed_stacks = CallChainParser().parse_stack_count(self.stacks)
+        parsed_stacks = CallChainParser(self.extra_rules).parse_stack_count(self.stacks)
         rule_table = list()
         for rule in filter_rules:
             stack_table = list()
@@ -635,7 +654,7 @@ class CallChainRender:
             f.write(html)
 
     def render_calls_v2(self):
-        parsed_calls = CallChainParser().parse_call_count(self.calls)
+        parsed_calls = CallChainParser(self.extra_rules).parse_call_count(self.calls)
         caller_table = list()
         for caller, details in parsed_calls.items():
             callee_table = list()
@@ -654,7 +673,7 @@ class CallChainRender:
     def render_calls(self):
         g = graphviz.Digraph(self.graph_name + '_calls', filename=self.calls_dot_name)
         g.format = 'svg'
-        parsed_calls = CallChainParser().parse_call_count(self.calls)
+        parsed_calls = CallChainParser(self.extra_rules).parse_call_count(self.calls)
         for caller, details in parsed_calls.items():
             sub = graphviz.Digraph(caller)
             sub.engine = 'twopi'
