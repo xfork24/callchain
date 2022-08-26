@@ -33,6 +33,7 @@ if __name__ == '__main__':
             extra_combine_rules = scenario['extra_combine_rules'] if 'extra_combine_rules' in scenario else None
             extra_delete_rules = scenario['extra_delete_rules'] if 'extra_delete_rules' in scenario else None
             extra_rules = (extra_node_overwrite_rules, extra_edge_overwrite_rules, extra_rename_rules, extra_combine_rules, extra_delete_rules)
+            highlights = scenario['highlights'] if 'highlights' in scenario else None
             if reload:
                 log.info('Processing scenario with reload: {0}'.format(name))
                 callchain = list()
@@ -53,16 +54,16 @@ if __name__ == '__main__':
                 with open(scenario_path + 'original_calls.txt', 'w') as f:
                     f.write(json.dumps(original_calls))
                 refined_callchain = CallChainParser(*extra_rules).refine_callchain(callchain)
-                ccr = CallChainRender(refined_callchain, refined_calls, scenario['name'], region=scenario['region'], output_path=scenario_path)
+                ccr = CallChainRender(refined_callchain, refined_calls, highlights, scenario['name'], region=scenario['region'], output_path=scenario_path)
             else:
                 log.info('Processing scenario without reload: {0}'.format(name))
-                ccr = CallChainRender(None, None, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=extra_rules, output_path=scenario_path)
+                ccr = CallChainRender(None, None, highlights, scenario['name'], region=scenario['region'], load_exist=True, load_original=True, extra_rules=extra_rules, output_path=scenario_path)
             ccr.save_callchain()
             ccr.save_calls()
             ccr.save_stacks()
+            ccr.save_highlight_stacks()
             f, _ = ccr.render_callchain(show_label=True, show_order=True)
             f.render()
             ccr.render_calls_v2()
-            filter_rules = scenario['filter_stack'] if 'filter_stack' in scenario else list()
-            ccr.render_filtered_stacks(filter_rules)
+            ccr.render_highlight_stacks()
             ccr.generate_plantuml_script()

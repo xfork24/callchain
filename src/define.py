@@ -17,18 +17,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(name
 log = logging.getLogger('root')
 
 SLS_SERVICE_GROUPS = {
-    'SLS Gateway': ['LPS'],
-    'SLS Core Fulfillment Capability': ['LFS', 'LLS', 'SmartRouting'],
-    'SLS Tracking': ['LTS', 'TrackingPN'],
-    'SLS Basic Capability': ['LCOS', 'WBC', 'IDCS'],
-    'SLS 3PL Gateway': ['LCS', 'PIS'],
-    'SSC Finance': ['RateAPI'],
-    'Async Jobs': ['OrderCreateJob',
-                   'UpdateLogisticInfoToOmsJob',
-                   'PushOmsTrackingWithoutStatusJob',
-                   'OrderCreatedTrackingUpdateJob',
-                   'StatusChangeTriggerCalcAsfJob',
-                   'Calc3plEsfJob'],
-    'External Dependencies': ['Saturn', 'SPX', 'OMS'],
-    '3PL Dependencies': ['3PL'],
+    'Fulfillment Gateway': ['LPS'],
+    'Core Fulfillment Capability': ['LFS', 'LLS', 'SmartRouting'],
+    'Tracking': ['LTS', 'TrackingPN'],
+    'Fundamental Capability': ['LCOS', 'WBC', 'IDCS', 'SLS-Location', 'EP-Service'],
+    '3PL Gateway': ['LCS', 'PIS'],
+    'Finance': ['RateAPI', 'RateAPI-Offline'],
+    'Async Jobs': ['^.*Job$', '^.*_task$'],
+    'External Dependencies': ['Saturn', 'PIS-Saturn', 'Celery', 'SPX', 'OMS', '3PL'],
 }
+
+HIGHLIGHT_COLOR = 'red'

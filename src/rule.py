@@ -61,7 +61,9 @@ CALLCHAIN_DELETE_RULES = [
     ('*', 'LogisticsAPI', '*', '*', '*', '*'),
     ('*', 'LPS\\-LiveTest', '*', '*', '*', '*'),
     ('*', 'LiveTestAPI', '*', '*', '*', '*'),
+    ('*', 'API\\.smart\\-sorting\\-live\\-*', '*', '*', '*', '*'),
 
+    ('*', '*', 'FleetOrder', '*', '*', '*'),
     ('*', '*', 'CatOrderLPIS', '*', '*', '*'),
     ('*', '*', 'OrderDetail', '*', '*', '*'),
     ('*', '*', 'OneApi', '*', '*', '*'),
@@ -201,7 +203,7 @@ CALLCHAIN_LINK_RULES = {
          'Celery', 'update_logistic_tracking_data_task', 'celery_task.celery_update_status.update_logistic_tracking_data'),
     53: ('*', 'LCS', 'Celery', 'celery_task\\.celery_tidb_update_status\\.update_logistic_tracking_data_using_tidb', '*', '*',
          'LCS-CELERY-{0}', 'Task.invoke', 'celery_task.celery_tidb_update_status.update_logistic_tracking_data_using_tidb',
-         'Celery', 'update_logistic_tracking_data_using_tidb_task', 'celery_task\\.celery_tidb_update_status\\.update_logistic_tracking_data_using_tidb'),
+         'Celery', 'update_logistic_tracking_data_using_tidb_task', 'celery_task.celery_tidb_update_status.update_logistic_tracking_data_using_tidb'),
     61: ('*', 'update_logistic_tracking_data_task', 'Celery', 'celery_task.celery_notify_status.push_tracking_retry', '*', '*',
          'LCS-CELERY-{0}', 'Task.invoke', 'celery_task.celery_notify_status.push_tracking_retry',
          'Celery', 'push_tracking_retry_task', 'celery_task.celery_notify_status.push_tracking_retry'),
@@ -216,12 +218,12 @@ CALLCHAIN_LINK_RULES = {
          'Celery', 'push_weight_fee_retry_task', 'celery_task.celery_notify_status.push_weight_fee_retry'),
 
     101: ('*', 'PIS', 'PIS-Saturn', 'ProduceTrackingPushMessage', '*', '*',
-          'pis-partnerintegrationtask-live-{0}', 'Task', 'ConsumeTrackingPushMessage',
-          'PIS-Saturn', 'ConsumeTrackingPushMessage', 'ConsumeTrackingPushMessage'),
+          'pis-partnerintegrationtask-live-{0}', 'Task', 'ConsumeTrackingPushMessageJob',
+          'PIS-Saturn', 'ConsumeTrackingPushMessageJob', 'ConsumeTrackingPushMessageJob'),
 }
 
 CALLSTACK_END_RULES = [
-    'Saturn', 'Celery',
+    'Saturn', 'PIS-Saturn', 'Celery',
 ]
 
 API_CALL_MAP = {

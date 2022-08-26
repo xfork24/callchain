@@ -347,6 +347,24 @@ class CallChainParser:
                 stack_map[stack_key] = stack_map[stack_key] + 1
         return stack_map
 
+    def parse_stack_count_v2(self, stacks):
+        stack_map = {}
+        for stack in stacks:
+            stack_key = ''
+            for call in stack:
+                caller = call[0]
+                callee = call[1]
+                api = call[2]
+                if stack_key == '':
+                    stack_key += '{0}-{1}->{2}'.format(caller, api, callee)
+                else:
+                    stack_key += '-{0}->{1}'.format(api, callee)
+            if stack_key not in stack_map:
+                stack_map[stack_key] = 1
+            else:
+                stack_map[stack_key] = stack_map[stack_key] + 1
+        return stack_map
+
     def refine_callchain(self, callchain):
         callchain = self.refine_node_overwrite_rules(callchain)
         callchain = self.refine_edge_overwrite_rules(callchain)
@@ -391,12 +409,38 @@ class CallChainParser:
                 cur_stack.append((cc[2], None))
         return stacks
 
+    def parse_stacks_v2(self, callchain):
+        stacks = list()
+        cur_stack = list()
+        for cc in callchain:
+            if len(cur_stack) > 0:
+                if cc[1] in CALLSTACK_END_RULES:
+                    stacks.append(copy.deepcopy(cur_stack))
+                    cur_stack = list()
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+                elif cc[1] == cur_stack[-1][1]:
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+                else:
+                    stacks.append(copy.deepcopy(cur_stack))
+                    while len(cur_stack) > 0 and cur_stack[-1][1] != cc[1]:
+                        cur_stack = cur_stack[:-1]
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+            else:
+                cur_stack.append((cc[1], cc[2], cc[3]))
+        return stacks
+
     def parse_service_groups(self, callchain):
         service_groups = {}
         for name, services in SLS_SERVICE_GROUPS.items():
             for cc in callchain:
                 for idx in range(1, 3):
-                    if cc[idx] in services:
+                    match = False
+                    for service in services:
+                        regexp = re.compile(service)
+                        if re.match(regexp, cc[idx]) is not None:
+                            match = True
+                            break
+                    if match:
                         if name not in service_groups:
                             service_groups[name] = [cc[idx]]
                         else:
@@ -557,9 +601,10 @@ class CallChainParser:
 
 
 class CallChainRender:
-    def __init__(self, callchain, calls, graph_name='sample', region='ID', load_exist=False, load_original=True, extra_rules=None, output_path=None):
+    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', load_exist=False, load_original=True, extra_rules=None, output_path=None):
         self.callchain = callchain
         self.calls = calls
+        self.highlights = list() if highlights is None else highlights
         self.region = region
         self.index = 0
         self.graph_name = graph_name
@@ -567,13 +612,14 @@ class CallChainRender:
         self.callchain_dot_name = sub_folder + 'callchain.dot'
         self.calls_dot_name = sub_folder + 'calls.dot'
         self.calls_report_name = sub_folder + 'calls.report.txt'
-        self.filtered_stack_report_name = sub_folder + 'filtered_stack.report.txt'
         self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
         self.callchain_file_name = sub_folder + 'refined_callchain.txt'
         self.original_calls_file_name = sub_folder + 'original_calls.txt'
         self.calls_file_name = sub_folder + 'refined_calls.txt'
         self.original_stacks_file_name = sub_folder + 'original_stacks.txt'
-        self.stacks_report_name = sub_folder + 'stacks.report.txt'
+        self.stacks_file_name = sub_folder + 'stacks.txt'
+        self.highlight_stack_file_name = sub_folder + 'highlight_stacks.txt'
+        self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
         self.puml_file_name = sub_folder + 'sequence.uml'
         self.reload_exist = load_exist
         self.load_original = load_original
@@ -581,7 +627,8 @@ class CallChainRender:
         if self.reload_exist:
             self.callchain = CallChainParser(*self.extra_rules).refine_callchain(self.load_exist_callchain())
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
-        self.stacks = CallChainParser(*self.extra_rules).parse_stacks(self.callchain)
+        self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
+        self.highlight_stacks = self.parse_highlight_stacks()
 
     def generate_plantuml_script(self):
         service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain)
@@ -590,7 +637,7 @@ class CallChainRender:
             for name, services in service_groups.items():
                 f.write('box "{0}"\n'.format(name))
                 for service in services:
-                    f.write('participant {0}\n'.format(service))
+                    f.write('participant "{0}"\n'.format(service))
                 f.write('end box\n\n')
             cur_stack = list()
             root_frame = None if len(self.callchain) == 0 else self.callchain[0][1]
@@ -607,12 +654,18 @@ class CallChainRender:
                 else:
                     cur_stack.append(cc[1])
                     cur_stack.append(cc[2])
-                f.write('{0} -> {1} ++: {2}\n'.format(cc[1], cc[2], cc[3]))
+                f.write(self.render_plantuml_call(cc[1], cc[2], cc[3]))
                 if cur_stack[-1] in CALLSTACK_END_RULES:
                     f.write('return response\n')
                     cur_stack = cur_stack[:-1]
             f.write('return response\n\n')
             f.write('@enduml\n')
+
+    def render_plantuml_call(self, caller, callee, api):
+        if self.is_highlight(caller, callee, api):
+            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api, HIGHLIGHT_COLOR)
+        else:
+            return '"{0}" -> "{1}" ++ : {2}'.format(caller, callee, api)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -630,19 +683,31 @@ class CallChainRender:
                 label = str(item[6]) if len(item) > 6 else ''
             else:
                 label = ''
-            g.node(item[1], shape='box')
-            g.node(item[2], shape='box')
-            g.edge(item[1], item[2],
-                   label=label,
-                   tooltip=item[3] if show_tooltip else '',
-                   target="_blank",
-                   edgehref=edge_url if show_link else '')
+            highlight = self.is_highlight(item[1], item[2], item[3])
+            if highlight:
+                g.node(item[1], shape='box', color='red', fontcolor='red')
+                g.node(item[2], shape='box', color='red', fontcolor='red')
+                g.edge(item[1], item[2],
+                       label=label,
+                       tooltip=item[3] if show_tooltip else '',
+                       target='_blank',
+                       edgehref=edge_url if show_link else '',
+                       color='red',
+                       fontcolor='red')
+            else:
+                g.node(item[1], shape='box')
+                g.node(item[2], shape='box')
+                g.edge(item[1], item[2],
+                       label=label,
+                       tooltip=item[3] if show_tooltip else '',
+                       target='_blank',
+                       edgehref=edge_url if show_link else '')
         return g, self.callchain
 
-    def render_filtered_stacks(self, filter_rules):
-        parsed_stacks = CallChainParser(self.extra_rules).parse_stack_count(self.stacks)
+    def render_highlight_stacks(self):
+        parsed_stacks = CallChainParser(self.extra_rules).parse_stack_count_v2(self.stacks)
         rule_table = list()
-        for rule in filter_rules:
+        for rule in self.highlights:
             stack_table = list()
             for stack_key, count in parsed_stacks.items():
                 if stack_key.find(rule) != -1:
@@ -650,7 +715,7 @@ class CallChainRender:
             rule_content = tabulate(stack_table, tablefmt='plain')
             rule_table.append([rule, rule_content])
         html = tabulate(rule_table, ['Rule', 'Stack'], tablefmt='fancy_grid')
-        with open(self.filtered_stack_report_name, 'w') as f:
+        with open(self.highlight_stack_report_name, 'w') as f:
             f.write(html)
 
     def render_calls_v2(self):
@@ -669,6 +734,20 @@ class CallChainRender:
         html = tabulate(caller_table, ['Caller', 'Details'], tablefmt='fancy_grid')
         with open(self.calls_report_name, 'w') as f:
             f.write(html)
+
+    def parse_highlight_stacks(self):
+        highlight_stacks = list()
+        for highlight in self.highlights:
+            for stack in self.stacks:
+                match = False
+                for item in stack:
+                    caller, callee, api = item
+                    if api == highlight:
+                        match = True
+                        break
+                if match:
+                    highlight_stacks.append(stack)
+        return highlight_stacks
 
     def render_calls(self):
         g = graphviz.Digraph(self.graph_name + '_calls', filename=self.calls_dot_name)
@@ -690,6 +769,16 @@ class CallChainRender:
             g.subgraph(sub)
         return g, self.calls
 
+    def is_highlight(self, h1, h2, h3):
+        match = False
+        for stack in self.highlight_stacks:
+            for call in stack:
+                caller, callee, api = call
+                if caller == h1 and callee == h2 and api == h3:
+                    match = True
+                    break
+        return match
+
     def parse_edge_url(self, caller, callee, api):
         key = '{0}:{1}:{2}'.format(caller, callee, api)
         return api if key not in API_CALL_MAP else API_CALL_MAP[key]
@@ -707,8 +796,12 @@ class CallChainRender:
             f.write(json.dumps(self.calls))
 
     def save_stacks(self):
-        with open(self.stacks_report_name, 'w') as f:
+        with open(self.stacks_file_name, 'w') as f:
             f.write(json.dumps(self.stacks))
+
+    def save_highlight_stacks(self):
+        with open(self.highlight_stack_file_name, 'w') as f:
+            f.write(json.dumps(self.highlight_stacks))
 
     def load_exist_callchain(self):
         callchain_file = self.original_callchain_file_name if self.load_original else self.callchain_file_name
