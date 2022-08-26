@@ -429,6 +429,20 @@ class CallChainParser:
                 cur_stack.append((cc[1], cc[2], cc[3]))
         return stacks
 
+    def parse_highlight_stacks(self, stacks, highlights):
+        highlight_stacks = list()
+        for highlight in highlights:
+            for stack in stacks:
+                match = False
+                for item in stack:
+                    caller, callee, api = item
+                    if api == highlight:
+                        match = True
+                        break
+                if match:
+                    highlight_stacks.append(stack)
+        return highlight_stacks
+
     def parse_service_groups(self, callchain):
         service_groups = {}
         for name, services in SLS_SERVICE_GROUPS.items():
@@ -601,34 +615,36 @@ class CallChainParser:
 
 
 class CallChainRender:
-    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', load_exist=False, load_original=True, extra_rules=None, output_path=None):
+    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', output_path=None, load_exist=False, load_original=True, extra_rules=None):
         self.callchain = callchain
         self.calls = calls
         self.highlights = list() if highlights is None else highlights
-        self.region = region
-        self.index = 0
         self.graph_name = graph_name
+        self.region = region
         sub_folder = '../{0}/{1}/{2}/'.format(DEFAULT_OUTPUT_SUB_FOLDER_NAME, region, graph_name) if output_path is None else output_path
+        # original files
+        self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
+        self.original_calls_file_name = sub_folder + 'original_calls.txt'
+        # parsed files
+        self.callchain_file_name = sub_folder + 'callchain.txt'
+        self.calls_file_name = sub_folder + 'calls.txt'
+        self.stacks_file_name = sub_folder + 'stacks.txt'
+        self.highlight_stack_file_name = sub_folder + 'highlight_stacks.txt'
+        # report files
         self.callchain_dot_name = sub_folder + 'callchain.dot'
         self.calls_dot_name = sub_folder + 'calls.dot'
         self.calls_report_name = sub_folder + 'calls.report.txt'
-        self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
-        self.callchain_file_name = sub_folder + 'refined_callchain.txt'
-        self.original_calls_file_name = sub_folder + 'original_calls.txt'
-        self.calls_file_name = sub_folder + 'refined_calls.txt'
-        self.original_stacks_file_name = sub_folder + 'original_stacks.txt'
-        self.stacks_file_name = sub_folder + 'stacks.txt'
-        self.highlight_stack_file_name = sub_folder + 'highlight_stacks.txt'
         self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
         self.puml_file_name = sub_folder + 'sequence.uml'
-        self.reload_exist = load_exist
+        self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
-        if self.reload_exist:
+        if self.load_exist:
             self.callchain = CallChainParser(*self.extra_rules).refine_callchain(self.load_exist_callchain())
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
-        self.highlight_stacks = self.parse_highlight_stacks()
+        self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
+        self.index = 0
 
     def generate_plantuml_script(self):
         service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain)
@@ -665,7 +681,7 @@ class CallChainRender:
         if self.is_highlight(caller, callee, api):
             return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api, HIGHLIGHT_COLOR)
         else:
-            return '"{0}" -> "{1}" ++ : {2}'.format(caller, callee, api)
+            return '"{0}" -> "{1}" ++ : {2}\n'.format(caller, callee, api)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -735,20 +751,6 @@ class CallChainRender:
         with open(self.calls_report_name, 'w') as f:
             f.write(html)
 
-    def parse_highlight_stacks(self):
-        highlight_stacks = list()
-        for highlight in self.highlights:
-            for stack in self.stacks:
-                match = False
-                for item in stack:
-                    caller, callee, api = item
-                    if api == highlight:
-                        match = True
-                        break
-                if match:
-                    highlight_stacks.append(stack)
-        return highlight_stacks
-
     def render_calls(self):
         g = graphviz.Digraph(self.graph_name + '_calls', filename=self.calls_dot_name)
         g.format = 'svg'
@@ -781,7 +783,7 @@ class CallChainRender:
 
     def parse_edge_url(self, caller, callee, api):
         key = '{0}:{1}:{2}'.format(caller, callee, api)
-        return api if key not in API_CALL_MAP else API_CALL_MAP[key]
+        return api if key not in API_HYPERLINK_RULES else API_HYPERLINK_RULES[key]
 
     def gen_node_name(self):
         self.index = self.index + 1

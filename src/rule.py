@@ -226,5 +226,5 @@ CALLSTACK_END_RULES = [
     'Saturn', 'PIS-Saturn', 'Celery',
 ]
 
-API_CALL_MAP = {
+API_HYPERLINK_RULES = {
 }
