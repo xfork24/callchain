@@ -48,7 +48,7 @@ CALLCHAIN_EDGE_OVERWRITE_RULES = {
 # Scenario specific renaming rules should be defined in scenario specific places because it has many possible mappings.
 CALLCHAIN_RENAME_RULES = [
     # (event_id, callee, caller, api, reserved, reserved, index:rename_to)
-    ("*", "PIS", "Kafka", "ProduceTrackingPushMessage", '*', '*', '2:PIS-Saturn'),
+    ("*", "PIS", "Kafka", "ProduceTrackingPushMessage", '*', '*', '2:Saturn'),
     ('*', '(OrderCreateJob|UpdateLogisticInfoToOmsJob)', 'Task\\.Retry', '(OrderCreate/OrderCreateJob|OrderTnNotify/UpdateLogisticInfoToOmsJob)', '*', '*', '2:Saturn'),
 ]
 
@@ -217,14 +217,52 @@ CALLCHAIN_LINK_RULES = {
          'LCS-CELERY-{0}', 'Task.invoke', 'celery_task.celery_notify_status.push_weight_fee_retry',
          'Celery', 'push_weight_fee_retry_task', 'celery_task.celery_notify_status.push_weight_fee_retry'),
 
-    101: ('*', 'PIS', 'PIS-Saturn', 'ProduceTrackingPushMessage', '*', '*',
+    101: ('*', 'PIS', 'Saturn', 'ProduceTrackingPushMessage', '*', '*',
           'pis-partnerintegrationtask-live-{0}', 'Task', 'ConsumeTrackingPushMessageJob',
-          'PIS-Saturn', 'ConsumeTrackingPushMessageJob', 'ConsumeTrackingPushMessageJob'),
+          'Saturn', 'ConsumeTrackingPushMessageJob', 'ConsumeTrackingPushMessageJob'),
 }
 
 CALLSTACK_END_RULES = [
-    'Saturn', 'PIS-Saturn', 'Celery',
+    'Saturn', 'Celery',
 ]
 
 API_HYPERLINK_RULES = {
+}
+
+SERVICE_LEVEL_COMPLIANCE_RULES = {
+    'LPS': ['LFS', 'SmartRouting', 'RateAPI'],
+    'LFS': ['LLS', 'TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'EP\\-Service'],
+    'LLS': ['TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'LCS', 'PIS'],
+    'SmartRouting': ['LCOS', 'SLS\\-Location'],
+    'LTS': [],
+    'TrackingPN': [],
+    'LCOS': [],
+    'WBC': ['RateAPI\\-Offline'],
+    'IDCS': [],
+    'SLS-Location': [],
+    'EP-Service': [],
+    'LCS': ['3PL', 'SPX'],
+    'PIS': ['3PL', 'SPX'],
+    'RateAPI': [],
+    'RateAPI-Offline': [],
+    '3PL': ['LCS', 'PIS'],
+    'SPX': ['LCS', 'PIS'],
+    'OMS': ['LPS'],
+    '.*Job': ['RateAPI\\-Offline'],
+    '.*_task': ['RateAPI\\-Offline'],
+}
+
+SERVICE_LEVEL_VIOLATION_RULES = {
+}
+
+DOMAIN_LEVEL_COMPLIANCE_RULES = {
+}
+
+DOMAIN_LEVEL_VIOLATION_RULES = {
+}
+
+API_LEVEL_COMPLIANCE_RULES = {
+}
+
+API_LEVEL_VIOLATION_RULES = {
 }

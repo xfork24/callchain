@@ -14,13 +14,14 @@ from bs4 import BeautifulSoup
 from define import *
 from rule import *
 
-
 """
     {refined}: return refined callchain
     {sample}: get one sampled information
     {callchain}: return callchain information
     {with_links}: return callchain with links
 """
+
+
 class CatDataManager:
     def __init__(self, output_path='./output',
                  extra_callchain=None,
@@ -49,7 +50,9 @@ class CatDataManager:
             return None
         jdata = json.loads(response.content)
         msg_paths = list()
-        msg_paths.append('$.m_machines.All.m_types."{0}".m_names."{1}".m_statusDists."0".m_sampleMessages'.format(cat_type, cat_name))
+        msg_paths.append(
+            '$.m_machines.All.m_types."{0}".m_names."{1}".m_statusDists."0".m_sampleMessages'.format(cat_type,
+                                                                                                     cat_name))
         msg_paths.append('$.m_machines.All.m_types."{0}".m_statusDists."0".m_sampleMessages'.format(cat_type))
         for path in msg_paths:
             jp_expr = jp.parse(path)
@@ -108,15 +111,18 @@ class CatDataManager:
         root_frame_call = frame[2].tolist()[0]
         return root_frame_name, root_frame_call
 
-    def get_callchain_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10, cat_date=None, to_root=True, region='ID'):
+    def get_callchain_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10,
+                                 cat_date=None, to_root=True, region='ID'):
         all_callchain = self.get_callchain(cat_domain, cat_type, cat_name, sample_count, cat_date, to_root)
         all_callchain += self.extra_callchain
         for i in range(CALLCHAIN_LINK_ANALYSIS_LIMIT):
             all_callchain += self.parse_callchain_link(all_callchain, link_sample_count, cat_date, region)
         return all_callchain
 
-    def get_callchain_and_report_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10, cat_date=None, to_root=True, region='ID'):
-        original_callchain = self.get_callchain_with_links(cat_domain, cat_type, cat_name, sample_count, link_sample_count, cat_date, to_root, region)
+    def get_callchain_and_report_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10,
+                                            cat_date=None, to_root=True, region='ID'):
+        original_callchain = self.get_callchain_with_links(cat_domain, cat_type, cat_name, sample_count,
+                                                           link_sample_count, cat_date, to_root, region)
         return original_callchain, self.calls
 
     def get_message_report(self, message_id, to_root=True):
@@ -157,13 +163,13 @@ class CatDataManager:
                     callchain.append(parsed)
             elif evt == '/':
                 next_frame_df = self.get_message_report(cat_type, to_root=False)
-                if frame_df.iloc[[i-1]][1].tolist()[0] == 'RemoteCall':
-                    if frame_df.iloc[[i-2]][1].tolist()[0] == 'RateLimit':
-                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-3]])
+                if frame_df.iloc[[i - 1]][1].tolist()[0] == 'RemoteCall':
+                    if frame_df.iloc[[i - 2]][1].tolist()[0] == 'RateLimit':
+                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i - 3]])
                     else:
-                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-2]])
+                        new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i - 2]])
                 else:
-                    new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i-1]])
+                    new_frame_name, new_call_name = self.parse_root_frame_name(frame_df.iloc[[i - 1]])
                 callchain += self.parse_callchain(next_frame_df, new_frame_name)
             elif evt == 'E' or evt == 'T':
                 # ignore events and end of transactions
@@ -299,15 +305,18 @@ class CatDataManager:
         response = requests.get(url, headers=headers, params=params)
         if not response.ok:
             if response.reason == 'Not Found':
-                log.debug('failed to call url=%s with headers=%s, params=%s, reason=%s', url, headers, params, response.reason)
+                log.debug('failed to call url=%s with headers=%s, params=%s, reason=%s', url, headers, params,
+                          response.reason)
             else:
-                log.error('failed to call url=%s with headers=%s, params=%s, reason=%s', url, headers, params, response.reason)
+                log.error('failed to call url=%s with headers=%s, params=%s, reason=%s', url, headers, params,
+                          response.reason)
             return None
         return response
 
 
 class CallChainParser:
-    def __init__(self, extra_node_overwrite_rules=None, extra_edge_overwrite_rules=None, extra_rename_rules=None, extra_combine_rules=None, extra_delete_rules=None):
+    def __init__(self, extra_node_overwrite_rules=None, extra_edge_overwrite_rules=None, extra_rename_rules=None,
+                 extra_combine_rules=None, extra_delete_rules=None):
         self.extra_node_overwrite_rules = {} if extra_node_overwrite_rules is None else extra_node_overwrite_rules
         self.extra_edge_overwrite_rules = {} if extra_edge_overwrite_rules is None else extra_edge_overwrite_rules
         self.extra_rename_rules = list() if extra_rename_rules is None else extra_rename_rules
@@ -450,7 +459,7 @@ class CallChainParser:
                 for idx in range(1, 3):
                     match = False
                     for service in services:
-                        regexp = re.compile(service)
+                        regexp = re.compile('^{0}$'.format(service))
                         if re.match(regexp, cc[idx]) is not None:
                             match = True
                             break
@@ -615,13 +624,16 @@ class CallChainParser:
 
 
 class CallChainRender:
-    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', output_path=None, load_exist=False, load_original=True, extra_rules=None):
+    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', output_path=None,
+                 load_exist=False, load_original=True, extra_rules=None):
         self.callchain = callchain
         self.calls = calls
+        self.manual_highlight = highlights is not None
         self.highlights = list() if highlights is None else highlights
         self.graph_name = graph_name
         self.region = region
-        sub_folder = '../{0}/{1}/{2}/'.format(DEFAULT_OUTPUT_SUB_FOLDER_NAME, region, graph_name) if output_path is None else output_path
+        sub_folder = '../{0}/{1}/{2}/'.format(DEFAULT_OUTPUT_SUB_FOLDER_NAME, region,
+                                              graph_name) if output_path is None else output_path
         # original files
         self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
         self.original_calls_file_name = sub_folder + 'original_calls.txt'
@@ -679,7 +691,8 @@ class CallChainRender:
 
     def render_plantuml_call(self, caller, callee, api):
         if self.is_highlight(caller, callee, api):
-            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api, HIGHLIGHT_COLOR)
+            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api,
+                                                                                        CRITICAL_CALL_HIGHLIGHT_COLOR)
         else:
             return '"{0}" -> "{1}" ++ : {2}\n'.format(caller, callee, api)
 
@@ -701,15 +714,16 @@ class CallChainRender:
                 label = ''
             highlight = self.is_highlight(item[1], item[2], item[3])
             if highlight:
-                g.node(item[1], shape='box', color='red', fontcolor='red')
-                g.node(item[2], shape='box', color='red', fontcolor='red')
+                hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
+                g.node(item[1], shape='box', color=hclr, fontcolor=hclr)
+                g.node(item[2], shape='box', color=hclr, fontcolor=hclr)
                 g.edge(item[1], item[2],
                        label=label,
                        tooltip=item[3] if show_tooltip else '',
                        target='_blank',
                        edgehref=edge_url if show_link else '',
-                       color='red',
-                       fontcolor='red')
+                       color=hclr,
+                       fontcolor=hclr)
             else:
                 g.node(item[1], shape='box')
                 g.node(item[2], shape='box')
@@ -772,14 +786,54 @@ class CallChainRender:
         return g, self.calls
 
     def is_highlight(self, h1, h2, h3):
+        if self.manual_highlight:
+            match = False
+            for stack in self.highlight_stacks:
+                for call in stack:
+                    caller, callee, api = call
+                    if caller == h1 and callee == h2 and api == h3:
+                        match = True
+                        break
+            return match
+        else:
+            if self.validate_service_level_rules(h1, h2, h3) and \
+                    self.validate_domain_level_rules(h1, h2, h3) and \
+                    self.validate_api_level_rules(h1, h2, h3):
+                return False
+            else:
+                return True
+
+    def validate_service_level_rules(self, h1, h2, h3):
+        matched, key = self.re_key_in_list(h1, SERVICE_LEVEL_COMPLIANCE_RULES)
+        if matched:
+            callees = SERVICE_LEVEL_COMPLIANCE_RULES[key]
+            matched, _ = self.re_key_in_list(h2, callees)
+            if not matched:
+                return False
+        matched, key = self.re_key_in_list(h1, SERVICE_LEVEL_VIOLATION_RULES)
+        if matched:
+            callees = SERVICE_LEVEL_VIOLATION_RULES[key]
+            matched, _ = self.re_key_in_list(h2, callees)
+            if matched:
+                return False
+        return True
+
+    def validate_domain_level_rules(self, h1, h2, h3):
+        return True
+
+    def validate_api_level_rules(self, h1, h2, h3):
+        return True
+
+    def re_key_in_list(self, key, col):
         match = False
-        for stack in self.highlight_stacks:
-            for call in stack:
-                caller, callee, api = call
-                if caller == h1 and callee == h2 and api == h3:
-                    match = True
-                    break
-        return match
+        matched_key = ''
+        for k in col:
+            regexp = re.compile('^{0}$'.format(k))
+            if re.match(regexp, key):
+                match = True
+                matched_key = k
+                break
+        return match, matched_key
 
     def parse_edge_url(self, caller, callee, api):
         key = '{0}:{1}:{2}'.format(caller, callee, api)
