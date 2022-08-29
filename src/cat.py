@@ -635,7 +635,7 @@ class CallChainRender:
         self.calls_dot_name = sub_folder + 'calls.dot'
         self.calls_report_name = sub_folder + 'calls.report.txt'
         self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
-        self.puml_file_name = sub_folder + 'sequence.uml'
+        self.puml_file_name = sub_folder + 'sequence.puml'
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
