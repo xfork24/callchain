@@ -231,7 +231,7 @@ API_HYPERLINK_RULES = {
 
 SERVICE_LEVEL_COMPLIANCE_RULES = {
     'LPS': ['LFS', 'SmartRouting', 'LCOS', 'RateAPI', 'Saturn'],
-    'LFS': ['LLS', 'TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'EP\\-Service', 'Saturn'],
+    'LFS': ['LLS', 'TrackingPN', 'LCOS', 'IDCS', 'RateAPI', 'SLS\\-Location', 'EP\\-Service', 'Saturn'],
     'LLS': ['TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'LCS', 'PIS', 'Saturn'],
     'SmartRouting': ['LCOS', 'SLS\\-Location', 'Saturn'],
     'LTS': ['Saturn'],
@@ -266,5 +266,5 @@ API_LEVEL_COMPLIANCE_RULES = {
 }
 
 API_LEVEL_VIOLATION_RULES = {
-    ('LFS:Fulfillment:/api/sls/order/create', 'RateAPI:FeeCalculation:/api/sls-basic/freight/calc_esf_weight/'),
+    ('LFS:Fulfillment:/api/sls/order/create', 'LFS:FeeCalculation:/api/sls-basic/freight/calc_esf_weight/'),
 }

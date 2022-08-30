@@ -6,6 +6,7 @@ import random
 import time
 import requests
 import re
+import csv
 import graphviz
 from tabulate import tabulate
 import jsonpath_ng as jp
@@ -648,6 +649,7 @@ class CallChainRender:
         self.calls_report_name = sub_folder + 'calls.report.txt'
         self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
         self.puml_file_name = sub_folder + 'sequence.puml'
+        self.domain_file_name = '../SLS_Domain_Analysis.csv'
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
@@ -656,6 +658,7 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
+        self.service_domains = self.load_service_domains(self.domain_file_name)
         self.index = 0
 
     def generate_plantuml_script(self):
@@ -668,29 +671,30 @@ class CallChainRender:
                     f.write('participant "{0}"\n'.format(service))
                 f.write('end box\n\n')
             cur_stack = list()
-            root_frame = None if len(self.callchain) == 0 else self.callchain[0][1]
             for cc in self.callchain:
                 if len(cur_stack) > 0:
-                    if cc[1] == cur_stack[-1]:
-                        cur_stack.append(cc[2])
+                    if cc[1] == cur_stack[-1][1]:
+                        cur_stack.append((cc[1], cc[2], cc[3]))
                     else:
-                        while len(cur_stack) > 0 and cur_stack[-1] != cc[1]:
-                            if not (len(cur_stack) == 1 and cur_stack[0] == root_frame):
-                                f.write('return\n')
+                        while len(cur_stack) > 0 and cur_stack[-1][1] != cc[1]:
+                            f.write('return\n')
                             cur_stack = cur_stack[:-1]
-                        cur_stack.append(cc[2])
+                        cur_stack.append((cc[1], cc[2], cc[3]))
                 else:
-                    cur_stack.append(cc[1])
-                    cur_stack.append(cc[2])
-                f.write(self.render_plantuml_call(cc[1], cc[2], cc[3]))
-                if cur_stack[-1] in CALLSTACK_END_RULES:
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+                f.write(self.render_plantuml_call(cur_stack))
+                if cur_stack[-1][1] in CALLSTACK_END_RULES:
                     f.write('return\n')
                     cur_stack = cur_stack[:-1]
             f.write('return\n\n')
             f.write('@enduml\n')
 
-    def render_plantuml_call(self, caller, callee, api):
-        if self.is_highlight(caller, callee, api):
+    def render_plantuml_call(self, stack):
+        caller, callee, api = stack[-1]
+        pcaller, pcallee, papi = None, None, None
+        if len(stack) > 1:
+            pcaller, pcallee, papi = stack[-2]
+        if self.is_highlight(caller, callee, api, pcaller, pcallee, papi):
             return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api,
                                                                                         CRITICAL_CALL_HIGHLIGHT_COLOR)
         else:
@@ -699,6 +703,7 @@ class CallChainRender:
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
         g.format = 'svg'
+        previous_item = None
         for item in self.callchain:
             edge_url = self.parse_edge_url(item[1], item[2], item[3])
             if show_label and show_order:
@@ -712,7 +717,10 @@ class CallChainRender:
                 label = str(item[6]) if len(item) > 6 else ''
             else:
                 label = ''
-            highlight = self.is_highlight(item[1], item[2], item[3])
+            if previous_item is None:
+                highlight = self.is_highlight(item[1], item[2], item[3])
+            else:
+                highlight = self.is_highlight(item[1], item[2], item[3], previous_item[1], previous_item[2], previous_item[3])
             if highlight:
                 hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
                 g.node(item[1], shape='box', color=hclr, fontcolor=hclr)
@@ -732,6 +740,7 @@ class CallChainRender:
                        tooltip=item[3] if show_tooltip else '',
                        target='_blank',
                        edgehref=edge_url if show_link else '')
+            previous_item = item
         return g, self.callchain
 
     def render_highlight_stacks(self):
@@ -785,7 +794,7 @@ class CallChainRender:
             g.subgraph(sub)
         return g, self.calls
 
-    def is_highlight(self, h1, h2, h3):
+    def is_highlight(self, h1, h2, h3, ph1=None, ph2=None, ph3=None):
         if self.manual_highlight:
             match = False
             for stack in self.highlight_stacks:
@@ -796,35 +805,64 @@ class CallChainRender:
                         break
             return match
         else:
-            if self.validate_service_level_rules(h1, h2, h3) and \
-                    self.validate_domain_level_rules(h1, h2, h3) and \
-                    self.validate_api_level_rules(h1, h2, h3):
+            if self.validate_service_level_rules(h1, h2) and \
+                    self.validate_domain_level_rules(ph2, self.parse_service_domain(ph2, ph3), h2, self.parse_service_domain(h2, h3)) and \
+                    self.validate_api_level_rules(ph2, self.parse_service_domain(ph2, ph3), ph3, h1, self.parse_service_domain(h2, h3), h3):
                 return False
             else:
                 return True
 
-    def validate_service_level_rules(self, h1, h2, h3):
-        matched, key = self.re_key_in_list(h1, SERVICE_LEVEL_COMPLIANCE_RULES)
+    def parse_service_domain(self, service, api):
+        if service is None or api is None:
+            return None
+        domain = None
+        for s, domains in self.service_domains.items():
+            if service == s:
+                for d, apis in domains.items():
+                    if api in apis:
+                        domain = d
+        return domain
+
+    def validate_service_level_rules(self, s1, s2):
+        matched, key = self.re_key_in_col(s1, SERVICE_LEVEL_COMPLIANCE_RULES)
         if matched:
             callees = SERVICE_LEVEL_COMPLIANCE_RULES[key]
-            matched, _ = self.re_key_in_list(h2, callees)
+            matched, _ = self.re_key_in_col(s2, callees)
             if not matched:
                 return False
-        matched, key = self.re_key_in_list(h1, SERVICE_LEVEL_VIOLATION_RULES)
+        matched, key = self.re_key_in_col(s1, SERVICE_LEVEL_VIOLATION_RULES)
         if matched:
             callees = SERVICE_LEVEL_VIOLATION_RULES[key]
-            matched, _ = self.re_key_in_list(h2, callees)
+            matched, _ = self.re_key_in_col(s2, callees)
             if matched:
                 return False
         return True
 
-    def validate_domain_level_rules(self, h1, h2, h3):
+    def validate_domain_level_rules(self, s1, d1, s2, d2):
+        if s1 is None or d1 is None or s2 is None or d2 is None:
+            return True
+        for item in DOMAIN_LEVEL_COMPLIANCE_RULES:
+            if '{0}:{1}'.format(s1, d1) == item[0] or '{0}:{1}'.format(s2, d2) == item[1]:
+                if '{0}:{1}'.format(s1, d1) != item[0] or '{0}:{1}'.format(s2, d2) != item[1]:
+                    return False
+        for item in DOMAIN_LEVEL_VIOLATION_RULES:
+            if '{0}:{1}'.format(s1, d1) == item[0] and '{0}:{1}'.format(s2, d2) == item[1]:
+                return False
         return True
 
-    def validate_api_level_rules(self, h1, h2, h3):
+    def validate_api_level_rules(self, s1, d1, a1, s2, d2, a2):
+        if s1 is None or d1 is None or a1 is None or s2 is None or d2 is None or a2 is None:
+            return True
+        for item in API_LEVEL_COMPLIANCE_RULES:
+            if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] or '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+                if '{0}:{1}:{2}'.format(s1, d1, a1) != item[0] or '{0}:{1}:{2}'.format(s2, d2, a2) != item[1]:
+                    return False
+        for item in API_LEVEL_VIOLATION_RULES:
+            if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+                return False
         return True
 
-    def re_key_in_list(self, key, col):
+    def re_key_in_col(self, key, col):
         match = False
         matched_key = ''
         for k in col:
@@ -870,3 +908,24 @@ class CallChainRender:
         with open(calls_file, 'r') as f:
             calls = json.loads(f.read(MAX_FILE_READ_LENGTH))
         return calls
+
+    def load_service_domains(self, domain_file_name):
+        results = {}
+        first_row = True
+        with open(domain_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                service, domain, api, critical, link, scope = row
+                if service == '' or domain == '' or api == '':
+                    continue
+                if service not in results:
+                    results[service] = {}
+                if domain not in results[service]:
+                    results[service][domain] = set()
+                if api not in results[service][domain]:
+                    results[service][domain].add(api)
+        return results
+
