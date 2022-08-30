@@ -658,7 +658,7 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
-        self.service_domains = self.load_service_domains(self.domain_file_name)
+        self.service_domains, self.service_apis = self.load_service_domains(self.domain_file_name)
         self.index = 0
 
     def generate_plantuml_script(self):
@@ -694,11 +694,13 @@ class CallChainRender:
         pcaller, pcallee, papi = None, None, None
         if len(stack) > 1:
             pcaller, pcallee, papi = stack[-2]
-        if self.is_highlight(caller, callee, api, pcaller, pcallee, papi):
-            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}</font>\n'.format(caller, callee, api,
-                                                                                        CRITICAL_CALL_HIGHLIGHT_COLOR)
+        compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
+        if compliance:
+            return '"{0}" -> "{1}" ++ : {2}{3}\n'.format(caller, callee, api, tags)
         else:
-            return '"{0}" -> "{1}" ++ : {2}\n'.format(caller, callee, api)
+            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}{4}</font>\n'.format(caller, callee, api,
+                                                                                           CRITICAL_CALL_HIGHLIGHT_COLOR,
+                                                                                           tags)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -718,28 +720,28 @@ class CallChainRender:
             else:
                 label = ''
             if previous_item is None:
-                highlight = self.is_highlight(item[1], item[2], item[3])
+                compliance, tags = self.parse_call_frame(item[1], item[2], item[3])
             else:
-                highlight = self.is_highlight(item[1], item[2], item[3], previous_item[1], previous_item[2], previous_item[3])
-            if highlight:
+                compliance, tags = self.parse_call_frame(item[1], item[2], item[3], previous_item[1], previous_item[2], previous_item[3])
+            if compliance:
+                g.node(item[1], shape='box')
+                g.node(item[2], shape='box')
+                g.edge(item[1], item[2],
+                       label='{0}{1}'.format(label, tags),
+                       tooltip=item[3] if show_tooltip else '',
+                       target='_blank',
+                       edgehref=edge_url if show_link else '')
+            else:
                 hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
                 g.node(item[1], shape='box', color=hclr, fontcolor=hclr)
                 g.node(item[2], shape='box', color=hclr, fontcolor=hclr)
                 g.edge(item[1], item[2],
-                       label=label,
+                       label='{0}{1}'.format(label, tags),
                        tooltip=item[3] if show_tooltip else '',
                        target='_blank',
                        edgehref=edge_url if show_link else '',
                        color=hclr,
                        fontcolor=hclr)
-            else:
-                g.node(item[1], shape='box')
-                g.node(item[2], shape='box')
-                g.edge(item[1], item[2],
-                       label=label,
-                       tooltip=item[3] if show_tooltip else '',
-                       target='_blank',
-                       edgehref=edge_url if show_link else '')
             previous_item = item
         return g, self.callchain
 
@@ -794,23 +796,42 @@ class CallChainRender:
             g.subgraph(sub)
         return g, self.calls
 
-    def is_highlight(self, h1, h2, h3, ph1=None, ph2=None, ph3=None):
+    def parse_call_frame(self, h1, h2, h3, ph1=None, ph2=None, ph3=None):
+        tags = ''
         if self.manual_highlight:
-            match = False
+            compliance = True
             for stack in self.highlight_stacks:
                 for call in stack:
                     caller, callee, api = call
                     if caller == h1 and callee == h2 and api == h3:
-                        match = True
+                        compliance = False
                         break
-            return match
         else:
             if self.validate_service_level_rules(h1, h2) and \
                     self.validate_domain_level_rules(ph2, self.parse_service_domain(ph2, ph3), h2, self.parse_service_domain(h2, h3)) and \
                     self.validate_api_level_rules(ph2, self.parse_service_domain(ph2, ph3), ph3, h1, self.parse_service_domain(h2, h3), h3):
-                return False
+                compliance = True
             else:
-                return True
+                compliance = False
+        if not compliance and not self.manual_highlight:
+            tags += 'x'
+        if self.is_critical_api(h2, h3):
+            tags += 'c'
+        if tags != '':
+            tags = '[{0}]'.format(tags)
+        return compliance, tags
+
+    def is_critical_api(self, service, api):
+        key = '{0}:{1}'.format(service, api)
+        if key in self.service_apis:
+            return self.service_apis[key]['critical']
+        return False
+
+    def get_api_link(self, service, api):
+        key = '{0}:{1}'.format(service, api)
+        if key in self.service_apis:
+            return self.service_apis[key]['link']
+        return ''
 
     def parse_service_domain(self, service, api):
         if service is None or api is None:
@@ -874,8 +895,8 @@ class CallChainRender:
         return match, matched_key
 
     def parse_edge_url(self, caller, callee, api):
-        key = '{0}:{1}:{2}'.format(caller, callee, api)
-        return api if key not in API_HYPERLINK_RULES else API_HYPERLINK_RULES[key]
+        api_link = self.get_api_link(callee, api)
+        return api if api_link == '' else api_link
 
     def gen_node_name(self):
         self.index = self.index + 1
@@ -910,7 +931,8 @@ class CallChainRender:
         return calls
 
     def load_service_domains(self, domain_file_name):
-        results = {}
+        service_domains = {}
+        service_apis = {}
         first_row = True
         with open(domain_file_name) as f:
             csv_reader = csv.reader(f, delimiter=',')
@@ -921,11 +943,18 @@ class CallChainRender:
                 service, domain, api, critical, link, scope = row
                 if service == '' or domain == '' or api == '':
                     continue
-                if service not in results:
-                    results[service] = {}
-                if domain not in results[service]:
-                    results[service][domain] = set()
-                if api not in results[service][domain]:
-                    results[service][domain].add(api)
-        return results
+                if service not in service_domains:
+                    service_domains[service] = {}
+                if domain not in service_domains[service]:
+                    service_domains[service][domain] = set()
+                if api not in service_domains[service][domain]:
+                    service_domains[service][domain].add(api)
+                key = '{0}:{1}'.format(service, api)
+                if key not in service_apis:
+                    service_apis[key] = {
+                        'critical': True if critical == 'Y' else False,
+                        'link': link,
+                        'scope': scope
+                    }
+        return service_domains, service_apis
 
