@@ -676,7 +676,7 @@ class CallChainRender:
                     else:
                         while len(cur_stack) > 0 and cur_stack[-1] != cc[1]:
                             if not (len(cur_stack) == 1 and cur_stack[0] == root_frame):
-                                f.write('return response\n')
+                                f.write('return\n')
                             cur_stack = cur_stack[:-1]
                         cur_stack.append(cc[2])
                 else:
@@ -684,9 +684,9 @@ class CallChainRender:
                     cur_stack.append(cc[2])
                 f.write(self.render_plantuml_call(cc[1], cc[2], cc[3]))
                 if cur_stack[-1] in CALLSTACK_END_RULES:
-                    f.write('return response\n')
+                    f.write('return\n')
                     cur_stack = cur_stack[:-1]
-            f.write('return response\n\n')
+            f.write('return\n\n')
             f.write('@enduml\n')
 
     def render_plantuml_call(self, caller, callee, api):

@@ -230,26 +230,26 @@ API_HYPERLINK_RULES = {
 }
 
 SERVICE_LEVEL_COMPLIANCE_RULES = {
-    'LPS': ['LFS', 'SmartRouting', 'RateAPI'],
-    'LFS': ['LLS', 'TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'EP\\-Service'],
-    'LLS': ['TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'LCS', 'PIS'],
-    'SmartRouting': ['LCOS', 'SLS\\-Location'],
-    'LTS': [],
-    'TrackingPN': [],
+    'LPS': ['LFS', 'SmartRouting', 'LCOS', 'RateAPI', 'Saturn'],
+    'LFS': ['LLS', 'TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'EP\\-Service', 'Saturn'],
+    'LLS': ['TrackingPN', 'LCOS', 'IDCS', 'SLS\\-Location', 'LCS', 'PIS', 'Saturn'],
+    'SmartRouting': ['LCOS', 'SLS\\-Location', 'Saturn'],
+    'LTS': ['Saturn'],
+    'TrackingPN': ['Saturn'],
     'LCOS': [],
-    'WBC': ['RateAPI\\-Offline'],
+    'WBC': ['RateAPI\\-Offline', 'Saturn'],
     'IDCS': [],
     'SLS-Location': [],
     'EP-Service': [],
-    'LCS': ['3PL', 'SPX'],
-    'PIS': ['3PL', 'SPX'],
-    'RateAPI': [],
-    'RateAPI-Offline': [],
+    'LCS': ['3PL', 'SPX', 'Celery'],
+    'PIS': ['3PL', 'SPX', 'Saturn'],
+    'RateAPI': ['LCOS', 'Saturn'],
+    'RateAPI-Offline': ['LCOS'],
     '3PL': ['LCS', 'PIS'],
     'SPX': ['LCS', 'PIS'],
     'OMS': ['LPS'],
-    '.*Job': ['RateAPI\\-Offline'],
-    '.*_task': ['RateAPI\\-Offline'],
+    '.*Job': ['RateAPI\\-Offline', 'Saturn'],
+    '.*_task': ['RateAPI\\-Offline', 'Saturn'],
 }
 
 SERVICE_LEVEL_VIOLATION_RULES = {
@@ -259,10 +259,12 @@ DOMAIN_LEVEL_COMPLIANCE_RULES = {
 }
 
 DOMAIN_LEVEL_VIOLATION_RULES = {
+    ('LFS:Fulfillment', 'RateAPI:FeeCalculation'),
 }
 
 API_LEVEL_COMPLIANCE_RULES = {
 }
 
 API_LEVEL_VIOLATION_RULES = {
+    ('LFS:Fulfillment:/api/sls/order/create', 'RateAPI:FeeCalculation:/api/sls-basic/freight/calc_esf_weight/'),
 }
