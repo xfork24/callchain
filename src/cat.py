@@ -862,10 +862,14 @@ class CallChainRender:
     def validate_domain_level_rules(self, s1, d1, s2, d2):
         if s1 is None or d1 is None or s2 is None or d2 is None:
             return True
+        rule_defined, rule_passed = False, False
         for item in DOMAIN_LEVEL_COMPLIANCE_RULES:
             if '{0}:{1}'.format(s1, d1) == item[0] or '{0}:{1}'.format(s2, d2) == item[1]:
-                if '{0}:{1}'.format(s1, d1) != item[0] or '{0}:{1}'.format(s2, d2) != item[1]:
-                    return False
+                rule_defined = True
+                if '{0}:{1}'.format(s1, d1) == item[0] and '{0}:{1}'.format(s2, d2) == item[1]:
+                    rule_passed = True
+        if rule_defined and not rule_passed:
+            return False
         for item in DOMAIN_LEVEL_VIOLATION_RULES:
             if '{0}:{1}'.format(s1, d1) == item[0] and '{0}:{1}'.format(s2, d2) == item[1]:
                 return False
@@ -874,10 +878,14 @@ class CallChainRender:
     def validate_api_level_rules(self, s1, d1, a1, s2, d2, a2):
         if s1 is None or d1 is None or a1 is None or s2 is None or d2 is None or a2 is None:
             return True
+        rule_defined, rule_passed = False, False
         for item in API_LEVEL_COMPLIANCE_RULES:
             if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] or '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
-                if '{0}:{1}:{2}'.format(s1, d1, a1) != item[0] or '{0}:{1}:{2}'.format(s2, d2, a2) != item[1]:
-                    return False
+                rule_defined = True
+                if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+                    rule_passed = True
+        if rule_defined and not rule_passed:
+            return False
         for item in API_LEVEL_VIOLATION_RULES:
             if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
                 return False
