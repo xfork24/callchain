@@ -274,5 +274,12 @@ API_LEVEL_COMPLIANCE_RULES = {
 }
 
 API_LEVEL_VIOLATION_RULES = {
-    ('LFS:Fulfillment:/api/sls/order/create', 'LFS:FeeCalculation:/api/sls-basic/freight/calc_esf_weight/'),
+    ('LFS:Fulfillment:/api/sls/order/create', 'RateAPI:FeeCalculation:/api/sls-basic/freight/calc_esf_weight/'),
+}
+
+TAG_LEVEL_COMPLIANCE_RULES = {
+}
+
+TAG_LEVEL_VIOLATION_RULES = {
+    ('order_creation', 'routing'),
 }

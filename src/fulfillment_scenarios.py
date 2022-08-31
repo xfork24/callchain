@@ -4,7 +4,7 @@ FULFILLMENT_SCENARIOS = {
     'create_order_id': {
         'entrypoints': [
             # (cat_domain, cat_type, cat_name, sample_count, link_count)
-            ('LFS-API-LIVE-ID', 'URL.lfs-api-live-id', '/api/sls/order/create', 1, 1),
+            ('LFS-API-LIVE-ID', 'URL.lfs-api-live-id', '/api/sls/order/create', 10, 10),
         ],
         'extra_callchain': [
         ],

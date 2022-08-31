@@ -691,9 +691,7 @@ class CallChainRender:
 
     def render_plantuml_call(self, stack):
         caller, callee, api = stack[-1]
-        pcaller, pcallee, papi = None, None, None
-        if len(stack) > 1:
-            pcaller, pcallee, papi = stack[-2]
+        pcaller, pcallee, papi = self.get_prev_call_frame(stack, stack[-1])
         compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
         hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
         if compliance:
@@ -704,44 +702,54 @@ class CallChainRender:
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
         g.format = 'svg'
-        previous_item = None
-        for item in self.callchain:
-            edge_url = self.parse_edge_url(item[1], item[2], item[3])
-            if show_label and show_order:
-                if len(item) > 6:
-                    label = '{0}[{1}]'.format(item[3], item[6])
+        cur_stack = list()
+        for cc in self.callchain:
+            # stack adjustment
+            if len(cur_stack) > 0:
+                if cc[1] == cur_stack[-1][1]:
+                    cur_stack.append((cc[1], cc[2], cc[3]))
                 else:
-                    label = item[3]
+                    while len(cur_stack) > 0 and cur_stack[-1][1] != cc[1]:
+                        cur_stack = cur_stack[:-1]
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+            else:
+                cur_stack.append((cc[1], cc[2], cc[3]))
+            if cur_stack[-1][1] in CALLSTACK_END_RULES:
+                cur_stack = cur_stack[:-1]
+            # rendering
+            edge_url = self.parse_edge_url(cc[1], cc[2], cc[3])
+            if show_label and show_order:
+                if len(cc) > 6:
+                    label = '{0}[{1}]'.format(cc[3], cc[6])
+                else:
+                    label = cc[3]
             elif show_label:
-                label = item[3]
+                label = cc[3]
             elif show_order:
-                label = str(item[6]) if len(item) > 6 else ''
+                label = str(cc[6]) if len(cc) > 6 else ''
             else:
                 label = ''
-            if previous_item is None:
-                compliance, tags = self.parse_call_frame(item[1], item[2], item[3])
-            else:
-                compliance, tags = self.parse_call_frame(item[1], item[2], item[3], previous_item[1], previous_item[2], previous_item[3])
+            pcaller, pcallee, papi = self.get_prev_call_frame(cur_stack, (cc[1], cc[2], cc[3]))
+            compliance, tags = self.parse_call_frame(cc[1], cc[2], cc[3], pcaller, pcallee, papi)
             if compliance:
-                g.node(item[1], shape='box')
-                g.node(item[2], shape='box')
-                g.edge(item[1], item[2],
+                g.node(cc[1], shape='box')
+                g.node(cc[2], shape='box')
+                g.edge(cc[1], cc[2],
                        label='{0}{1}'.format(label, tags),
-                       tooltip=item[3] if show_tooltip else '',
+                       tooltip=cc[3] if show_tooltip else '',
                        target='_blank',
                        edgehref=edge_url if show_link else '')
             else:
                 hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
-                g.node(item[1], shape='box', color=hclr, fontcolor=hclr)
-                g.node(item[2], shape='box', color=hclr, fontcolor=hclr)
-                g.edge(item[1], item[2],
+                g.node(cc[1], shape='box', color=hclr, fontcolor=hclr)
+                g.node(cc[2], shape='box', color=hclr, fontcolor=hclr)
+                g.edge(cc[1], cc[2],
                        label='{0}{1}'.format(label, tags),
-                       tooltip=item[3] if show_tooltip else '',
+                       tooltip=cc[3] if show_tooltip else '',
                        target='_blank',
                        edgehref=edge_url if show_link else '',
                        color=hclr,
                        fontcolor=hclr)
-            previous_item = item
         return g, self.callchain
 
     def render_highlight_stacks(self):
@@ -795,30 +803,46 @@ class CallChainRender:
             g.subgraph(sub)
         return g, self.calls
 
-    def parse_call_frame(self, h1, h2, h3, ph1=None, ph2=None, ph3=None):
+    def parse_call_frame(self, caller, callee, api, pcaller=None, pcallee=None, papi=None):
         tags = ''
         if self.manual_highlight:
             compliance = True
             for stack in self.highlight_stacks:
                 for call in stack:
                     caller, callee, api = call
-                    if caller == h1 and callee == h2 and api == h3:
+                    if caller == caller and callee == callee and api == api:
                         compliance = False
                         break
         else:
-            if self.validate_service_level_rules(h1, h2) and \
-                    self.validate_domain_level_rules(ph2, self.parse_service_domain(ph2, ph3), h2, self.parse_service_domain(h2, h3)) and \
-                    self.validate_api_level_rules(ph2, self.parse_service_domain(ph2, ph3), ph3, h1, self.parse_service_domain(h2, h3), h3):
+            pdomain = self.parse_service_domain(pcallee, papi)
+            domain = self.parse_service_domain(callee, api)
+            if self.validate_service_level_rules(caller, callee) and \
+                    self.validate_domain_level_rules(pcallee, pdomain, callee, domain) and \
+                    self.validate_api_level_rules(pcallee, pdomain, papi, caller, domain, api) and \
+                    self.validate_tag_level_rules(pcallee, pdomain, papi, caller, domain, api):
                 compliance = True
             else:
                 compliance = False
         if not compliance and not self.manual_highlight:
             tags += 'x'
-        if self.is_critical_api(h2, h3):
+        if self.is_critical_api(callee, api):
             tags += 'c'
         if tags != '':
             tags = '[{0}]'.format(tags)
         return compliance, tags
+
+    def get_prev_call_frame(self, stack, frame):
+        copied_stack = copy.deepcopy(stack)
+        copied_stack = copied_stack[:-1]
+        if len(copied_stack) == 0:
+            return None, None, None
+        while len(copied_stack) > 0 and copied_stack[-1][1] != frame[0]:
+            copied_stack = copied_stack[:-1]
+        if len(copied_stack) == 0:
+            print(frame)
+        else:
+            print(copied_stack[-1], frame)
+        return copied_stack[-1] if len(copied_stack) > 0 else (None, None, None)
 
     def is_critical_api(self, service, api):
         key = '{0}:{1}'.format(service, api)
@@ -844,6 +868,8 @@ class CallChainRender:
         return domain
 
     def validate_service_level_rules(self, s1, s2):
+        if s1 is None or s2 is None:
+            return True
         matched, key = self.re_key_in_col(s1, SERVICE_LEVEL_COMPLIANCE_RULES)
         if matched:
             callees = SERVICE_LEVEL_COMPLIANCE_RULES[key]
@@ -887,6 +913,28 @@ class CallChainRender:
             return False
         for item in API_LEVEL_VIOLATION_RULES:
             if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+                return False
+        return True
+
+    def validate_tag_level_rules(self, s1, d1, a1, s2, d2, a2):
+        if s1 is None or d1 is None or a1 is None or s2 is None or d2 is None or a2 is None:
+            return True
+        rule_defined, rule_passed = False, False
+        pkey = '{0}:{1}'.format(s2, a2)
+        key = '{0}:{1}'.format(s1, a1)
+        ptags = self.service_apis[pkey]['tags'] if pkey in self.service_apis else None
+        tags = self.service_apis[key]['tags'] if pkey in self.service_apis else None
+        if ptags is None or tags is None:
+            return True
+        for item in TAG_LEVEL_COMPLIANCE_RULES:
+            if item[0] in ptags or item[1] in tags:
+                rule_defined = True
+                if item[0] in ptags and item[1] in tags:
+                    rule_passed = True
+        if rule_defined and not rule_passed:
+            return False
+        for item in TAG_LEVEL_VIOLATION_RULES:
+            if item[0] in ptags and item[1] in tags:
                 return False
         return True
 
@@ -947,7 +995,7 @@ class CallChainRender:
                 if first_row:
                     first_row = False
                     continue
-                service, domain, api, critical, link, scope = row
+                service, domain, api, critical, tags, link, scope = row
                 if service == '' or domain == '' or api == '':
                     continue
                 if service not in service_domains:
@@ -960,6 +1008,7 @@ class CallChainRender:
                 if key not in service_apis:
                     service_apis[key] = {
                         'critical': True if critical == 'Y' else False,
+                        'tags': [x.strip() for x in tags.split(';') if x.strip() != ''],
                         'link': link,
                         'scope': scope
                     }
