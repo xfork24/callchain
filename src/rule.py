@@ -227,7 +227,7 @@ CALLSTACK_END_RULES = [
 ]
 
 SLS_SERVICE_GROUPS = {
-    'External Caller': ['Caller'],
+    'External Caller': ['External'],
     'Fulfillment Gateway': ['LPS'],
     'Core Fulfillment Capability': ['LFS', 'LLS', 'SmartRouting'],
     'Tracking': ['LTS', 'TrackingPN'],

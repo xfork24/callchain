@@ -2,6 +2,7 @@
 import copy
 import datetime
 import json
+import logging
 import random
 import time
 import requests
@@ -104,7 +105,7 @@ class CatDataManager:
             if root_df is None:
                 continue
             root_frame_name, root_call_name = self.parse_root_frame_name(root_df.iloc[[0]])
-            all_callchain += [self.get_call_overwrite('-', 'Caller', root_frame_name, root_call_name, '', '')]
+            all_callchain += [self.get_call_overwrite('-', 'External', root_frame_name, root_call_name, '', '')]
             all_callchain += self.parse_callchain(root_df, root_frame_name)
         return all_callchain
 
@@ -853,8 +854,8 @@ class CallChainRender:
             domain = self.parse_service_domain(callee, api)
             pkey = '{0}:{1}'.format(pcallee, papi)
             key = '{0}:{1}'.format(callee, api)
-            ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else None
-            tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
+            ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else list()
+            tags = self.api_definitions[key]['tags'] if key in self.api_definitions else list()
             compliance, tags = self.validate_callchain_rules(callee, domain, api, tags, pcallee, pdomain, papi, ptags)
             if compliance:
                 compliance = True
@@ -973,8 +974,6 @@ class CallChainRender:
         return True
 
     def validate_callchain_rules(self, callee, domain, api, tags, pcallee, pdomain, papi, ptags):
-        if callee is None or domain is None or api is None or pcallee is None or pdomain is None or papi is None:
-            return True, ''
         index = 2
         for rule in self.callchain_rules:
             caller_pattern = '{0}:{1}:{2}:{3}'.format(
@@ -991,20 +990,26 @@ class CallChainRender:
             )
             for tag in tags:
                 for ptag in ptags:
-                    caller_key = '{0}:{1}:{2}:{3}'.format(pcallee, pdomain, papi, ptag)
-                    callee_key = '{0}:{1}:{2}:{3}'.format(callee, domain, api, tag)
-                    if rule['action'] == 'allow' and re.match(re.compile(caller_pattern), caller_key) and re.match(re.compile(callee_pattern), callee_key):
+                    caller_key = '{0}:{1}:{2}:{3}'.format(pcallee, pdomain, papi, ptag).replace('None', '*')
+                    callee_key = '{0}:{1}:{2}:{3}'.format(callee, domain, api, tag).replace('None', '*')
+                    if rule['action'] == 'allow' and \
+                            re.match(re.compile(caller_pattern), caller_key) and \
+                            re.match(re.compile(callee_pattern), callee_key):
                         return True, index
-                    if rule['action'] == 'deny' and re.match(re.compile(caller_pattern), caller_key) and re.match(re.compile(callee_pattern), callee_key):
+                    if rule['action'] == 'deny' and \
+                            re.match(re.compile(caller_pattern), caller_key) and \
+                            re.match(re.compile(callee_pattern), callee_key):
                         return False, index
             if len(tags) == 0 and len(ptags) == 0:
-                caller_key = '{0}:{1}:{2}:'.format(pcallee, pdomain, papi)
-                callee_key = '{0}:{1}:{2}:'.format(callee, domain, api)
-                if rule['action'] == 'allow' and re.match(re.compile(caller_pattern), caller_key) and re.match(
-                        re.compile(callee_pattern), callee_key):
+                caller_key = '{0}:{1}:{2}:*'.format(pcallee, pdomain, papi).replace('None', '*')
+                callee_key = '{0}:{1}:{2}:*'.format(callee, domain, api).replace('None', '*')
+                if rule['action'] == 'allow' and \
+                        re.match(re.compile(caller_pattern), caller_key) and \
+                        re.match(re.compile(callee_pattern), callee_key):
                     return True, index
-                if rule['action'] == 'deny' and re.match(re.compile(caller_pattern), caller_key) and re.match(
-                        re.compile(callee_pattern), callee_key):
+                if rule['action'] == 'deny' and \
+                        re.match(re.compile(caller_pattern), caller_key) and \
+                        re.match(re.compile(callee_pattern), callee_key):
                     return False, index
             index = index + 1
         return True, ''
