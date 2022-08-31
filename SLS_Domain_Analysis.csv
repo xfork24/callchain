@@ -1,5 +1,5 @@
 Service,Domain,API,Critical,Tags,Link,Scope
-LPS,FulfillmentGateway,/api/sls/order/create,Y,order_creation,,
+LPS,FulfillmentGateway,/api/sls/create_order/,Y,order_creation,,
 LPS,FulfillmentGateway,/api/product/update_product_counter,Y,,,
 LFS,FulfillmentModel,,,,,
 LFS,Fulfillment,BatchCheckSmartRoutingLaneServiceableV2,Y,,,

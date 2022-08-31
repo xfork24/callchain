@@ -103,7 +103,8 @@ class CatDataManager:
             root_df = self.get_message_report(m, to_root)
             if root_df is None:
                 continue
-            root_frame_name, _ = self.parse_root_frame_name(root_df.iloc[[0]])
+            root_frame_name, root_call_name = self.parse_root_frame_name(root_df.iloc[[0]])
+            all_callchain += [self.get_call_overwrite('-', 'Caller', root_frame_name, root_call_name, '', '')]
             all_callchain += self.parse_callchain(root_df, root_frame_name)
         return all_callchain
 
@@ -691,7 +692,7 @@ class CallChainRender:
 
     def render_plantuml_call(self, stack):
         caller, callee, api = stack[-1]
-        pcaller, pcallee, papi = self.get_prev_call_frame(stack, stack[-1])
+        pcaller, pcallee, papi = self.get_prev_call_frame(stack, (caller, callee, api))
         compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
         hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
         if compliance:
@@ -817,9 +818,9 @@ class CallChainRender:
             pdomain = self.parse_service_domain(pcallee, papi)
             domain = self.parse_service_domain(callee, api)
             if self.validate_service_level_rules(caller, callee) and \
-                    self.validate_domain_level_rules(pcallee, pdomain, callee, domain) and \
-                    self.validate_api_level_rules(pcallee, pdomain, papi, caller, domain, api) and \
-                    self.validate_tag_level_rules(pcallee, pdomain, papi, caller, domain, api):
+                    self.validate_domain_level_rules(callee, domain, pcallee, pdomain) and \
+                    self.validate_api_level_rules(callee, domain, api, pcallee, pdomain, papi) and \
+                    self.validate_tag_level_rules(callee, domain, api, pcallee, pdomain, papi):
                 compliance = True
             else:
                 compliance = False
@@ -838,10 +839,6 @@ class CallChainRender:
             return None, None, None
         while len(copied_stack) > 0 and copied_stack[-1][1] != frame[0]:
             copied_stack = copied_stack[:-1]
-        if len(copied_stack) == 0:
-            print(frame)
-        else:
-            print(copied_stack[-1], frame)
         return copied_stack[-1] if len(copied_stack) > 0 else (None, None, None)
 
     def is_critical_api(self, service, api):
@@ -884,35 +881,35 @@ class CallChainRender:
                 return False
         return True
 
-    def validate_domain_level_rules(self, s1, d1, s2, d2):
-        if s1 is None or d1 is None or s2 is None or d2 is None:
+    def validate_domain_level_rules(self, callee, domain, pcallee, pdomain):
+        if pcallee is None or pdomain is None or callee is None or domain is None:
             return True
         rule_defined, rule_passed = False, False
         for item in DOMAIN_LEVEL_COMPLIANCE_RULES:
-            if '{0}:{1}'.format(s1, d1) == item[0] or '{0}:{1}'.format(s2, d2) == item[1]:
+            if '{0}:{1}'.format(pcallee, pdomain) == item[0] or '{0}:{1}'.format(callee, domain) == item[1]:
                 rule_defined = True
-                if '{0}:{1}'.format(s1, d1) == item[0] and '{0}:{1}'.format(s2, d2) == item[1]:
+                if '{0}:{1}'.format(pcallee, pdomain) == item[0] and '{0}:{1}'.format(callee, domain) == item[1]:
                     rule_passed = True
         if rule_defined and not rule_passed:
             return False
         for item in DOMAIN_LEVEL_VIOLATION_RULES:
-            if '{0}:{1}'.format(s1, d1) == item[0] and '{0}:{1}'.format(s2, d2) == item[1]:
+            if '{0}:{1}'.format(pcallee, pdomain) == item[0] and '{0}:{1}'.format(callee, domain) == item[1]:
                 return False
         return True
 
-    def validate_api_level_rules(self, s1, d1, a1, s2, d2, a2):
-        if s1 is None or d1 is None or a1 is None or s2 is None or d2 is None or a2 is None:
+    def validate_api_level_rules(self, callee, domain, api, pcallee, pdomain, papi):
+        if pcallee is None or pdomain is None or papi is None or callee is None or domain is None or api is None:
             return True
         rule_defined, rule_passed = False, False
         for item in API_LEVEL_COMPLIANCE_RULES:
-            if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] or '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+            if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] or '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
                 rule_defined = True
-                if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+                if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] and '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
                     rule_passed = True
         if rule_defined and not rule_passed:
             return False
         for item in API_LEVEL_VIOLATION_RULES:
-            if '{0}:{1}:{2}'.format(s1, d1, a1) == item[0] and '{0}:{1}:{2}'.format(s2, d2, a2) == item[1]:
+            if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] and '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
                 return False
         return True
 
