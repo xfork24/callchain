@@ -454,9 +454,9 @@ class CallChainParser:
                     highlight_stacks.append(stack)
         return highlight_stacks
 
-    def parse_service_groups(self, callchain):
+    def parse_service_groups(self, callchain, sg_definitions):
         service_groups = {}
-        for name, services in SLS_SERVICE_GROUPS.items():
+        for name, services in sg_definitions.items():
             for cc in callchain:
                 for idx in range(1, 3):
                     match = False
@@ -650,9 +650,12 @@ class CallChainRender:
         self.calls_report_name = sub_folder + 'calls.report.txt'
         self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
         self.puml_file_name = sub_folder + 'sequence.puml'
+        self.rule_violation_report_name = sub_folder + 'rules.report.txt'
+        # configuration files
         self.service_definition_file_name = '../services.csv'
         self.domain_definition_file_name = '../domains.csv'
         self.api_definition_file_name = '../apis.csv'
+        self.rule_definition_file_name = '../rules.csv'
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
@@ -661,14 +664,12 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
-        self.service_domains, self.service_definitions, self.domain_definitions, self.api_definitions = \
-            self.load_service_domains(self.service_definition_file_name,
-                                      self.domain_definition_file_name,
-                                      self.api_definition_file_name)
+        self.service_domains, self.service_definitions, self.domain_definitions, self.api_definitions = self.load_service_domains()
+        self.callchain_rules = self.load_callchain_rules()
         self.index = 0
 
     def generate_plantuml_script(self):
-        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain)
+        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain, SLS_SERVICE_GROUPS)
         with open(self.puml_file_name, 'w') as f:
             f.write('@startuml\n\n')
             for name, services in service_groups.items():
@@ -698,7 +699,7 @@ class CallChainRender:
     def render_plantuml_call(self, stack):
         caller, callee, api = stack[-1]
         pcaller, pcallee, papi = self.get_prev_call_frame(stack, (caller, callee, api))
-        compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
+        compliance, tags = self.parse_call_frame_v2(caller, callee, api, pcaller, pcallee, papi)
         hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
         if compliance:
             return '"{0}" -> "{1}" ++ : {2}{3}\n'.format(caller, callee, api, tags)
@@ -736,7 +737,7 @@ class CallChainRender:
             else:
                 label = ''
             pcaller, pcallee, papi = self.get_prev_call_frame(cur_stack, (cc[1], cc[2], cc[3]))
-            compliance, tags = self.parse_call_frame(cc[1], cc[2], cc[3], pcaller, pcallee, papi)
+            compliance, tags = self.parse_call_frame_v2(cc[1], cc[2], cc[3], pcaller, pcallee, papi)
             if compliance:
                 g.node(cc[1], shape='box')
                 g.node(cc[2], shape='box')
@@ -837,6 +838,32 @@ class CallChainRender:
             tags = '[{0}]'.format(tags)
         return compliance, tags
 
+    def parse_call_frame_v2(self, caller, callee, api, pcaller=None, pcallee=None, papi=None):
+        tags = ''
+        if self.manual_highlight:
+            compliance = True
+            for stack in self.highlight_stacks:
+                for call in stack:
+                    caller, callee, api = call
+                    if caller == caller and callee == callee and api == api:
+                        compliance = False
+                        break
+        else:
+            pdomain = self.parse_service_domain(pcallee, papi)
+            domain = self.parse_service_domain(callee, api)
+            pkey = '{0}:{1}'.format(pcallee, papi)
+            key = '{0}:{1}'.format(callee, api)
+            ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else None
+            tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
+            compliance, tags = self.validate_callchain_rules(callee, domain, api, tags, pcallee, pdomain, papi, ptags)
+            if compliance:
+                compliance = True
+            else:
+                compliance = False
+        if tags != '':
+            tags = '[{0}]'.format(tags)
+        return compliance, tags
+
     def get_prev_call_frame(self, stack, frame):
         copied_stack = copy.deepcopy(stack)
         copied_stack = copied_stack[:-1]
@@ -923,14 +950,14 @@ class CallChainRender:
                 return False
         return True
 
-    def validate_tag_level_rules(self, s1, d1, a1, s2, d2, a2):
-        if s1 is None or d1 is None or a1 is None or s2 is None or d2 is None or a2 is None:
+    def validate_tag_level_rules(self, callee, domain, api, pcallee, pdomain, papi):
+        if callee is None or domain is None or api is None or pcallee is None or pdomain is None or papi is None:
             return True
         rule_defined, rule_passed = False, False
-        pkey = '{0}:{1}'.format(s2, a2)
-        key = '{0}:{1}'.format(s1, a1)
+        pkey = '{0}:{1}'.format(pcallee, papi)
+        key = '{0}:{1}'.format(callee, api)
         ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else None
-        tags = self.api_definitions[key]['tags'] if pkey in self.api_definitions else None
+        tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
         if ptags is None or tags is None:
             return True
         for item in TAG_LEVEL_COMPLIANCE_RULES:
@@ -944,6 +971,43 @@ class CallChainRender:
             if item[0] in ptags and item[1] in tags:
                 return False
         return True
+
+    def validate_callchain_rules(self, callee, domain, api, tags, pcallee, pdomain, papi, ptags):
+        if callee is None or domain is None or api is None or pcallee is None or pdomain is None or papi is None:
+            return True, ''
+        index = 2
+        for rule in self.callchain_rules:
+            caller_pattern = '{0}:{1}:{2}:{3}'.format(
+                rule['caller_service'] if rule['caller_service'] != '' else '.*',
+                rule['caller_domain'] if rule['caller_domain'] != '' else '.*',
+                rule['caller_api'] if rule['caller_api'] != '' else '.*',
+                rule['caller_tag'] if rule['caller_tag'] != '' else '.*',
+            )
+            callee_pattern = '{0}:{1}:{2}:{3}'.format(
+                rule['callee_service'] if rule['callee_service'] != '' else '.*',
+                rule['callee_domain'] if rule['callee_domain'] != '' else '.*',
+                rule['callee_api'] if rule['callee_api'] != '' else '.*',
+                rule['callee_tag'] if rule['callee_tag'] != '' else '.*',
+            )
+            for tag in tags:
+                for ptag in ptags:
+                    caller_key = '{0}:{1}:{2}:{3}'.format(pcallee, pdomain, papi, ptag)
+                    callee_key = '{0}:{1}:{2}:{3}'.format(callee, domain, api, tag)
+                    if rule['action'] == 'allow' and re.match(re.compile(caller_pattern), caller_key) and re.match(re.compile(callee_pattern), callee_key):
+                        return True, index
+                    if rule['action'] == 'deny' and re.match(re.compile(caller_pattern), caller_key) and re.match(re.compile(callee_pattern), callee_key):
+                        return False, index
+            if len(tags) == 0 and len(ptags) == 0:
+                caller_key = '{0}:{1}:{2}:'.format(pcallee, pdomain, papi)
+                callee_key = '{0}:{1}:{2}:'.format(callee, domain, api)
+                if rule['action'] == 'allow' and re.match(re.compile(caller_pattern), caller_key) and re.match(
+                        re.compile(callee_pattern), callee_key):
+                    return True, index
+                if rule['action'] == 'deny' and re.match(re.compile(caller_pattern), caller_key) and re.match(
+                        re.compile(callee_pattern), callee_key):
+                    return False, index
+            index = index + 1
+        return True, ''
 
     def re_key_in_col(self, key, col):
         match = False
@@ -992,7 +1056,37 @@ class CallChainRender:
             calls = json.loads(f.read(MAX_FILE_READ_LENGTH))
         return calls
 
-    def load_service_domains(self, service_definition_file_name, domain_definition_file_name, api_definition_file_name):
+    def load_callchain_rules(self):
+        callchain_rules = list()
+        first_row = True
+        with open(self.rule_definition_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                action, caller_service, caller_domain, caller_api, caller_tag, callee_service, callee_domain, callee_api, callee_tag = row
+                row_items = set(row)
+                if len(row_items) == 1 and list(row_items)[0] == '':
+                    continue
+                if action.lower() != 'allow' and action.lower() != 'deny':
+                    log.error('invalid rule item, `Action` must be in `Allow|Deny`: %s', row)
+                    continue
+                rule = {
+                    'action': action.lower(),
+                    'caller_service': caller_service,
+                    'caller_domain': caller_domain,
+                    'caller_api': caller_api,
+                    'caller_tag': caller_tag,
+                    'callee_service': callee_service,
+                    'callee_domain': callee_domain,
+                    'callee_api': caller_api,
+                    'callee_tag': callee_tag,
+                }
+                callchain_rules.append(rule)
+        return callchain_rules
+
+    def load_service_domains(self):
         service_domains = {}
         service_definitions = {}
         domain_definitions = {}
@@ -1000,7 +1094,7 @@ class CallChainRender:
 
         # parse service definitions
         first_row = True
-        with open(service_definition_file_name) as f:
+        with open(self.service_definition_file_name) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1017,7 +1111,7 @@ class CallChainRender:
                     }
         # parse domain definitions
         first_row = True
-        with open(domain_definition_file_name) as f:
+        with open(self.domain_definition_file_name) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1035,7 +1129,7 @@ class CallChainRender:
                     }
         # parse api definitions
         first_row = True
-        with open(api_definition_file_name) as f:
+        with open(self.api_definition_file_name) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
