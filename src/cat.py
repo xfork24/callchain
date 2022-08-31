@@ -650,7 +650,9 @@ class CallChainRender:
         self.calls_report_name = sub_folder + 'calls.report.txt'
         self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
         self.puml_file_name = sub_folder + 'sequence.puml'
-        self.domain_file_name = '../SLS_Domain_Analysis.csv'
+        self.service_definition_file_name = '../services.csv'
+        self.domain_definition_file_name = '../domains.csv'
+        self.api_definition_file_name = '../apis.csv'
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
@@ -659,7 +661,10 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
-        self.service_domains, self.service_apis = self.load_service_domains(self.domain_file_name)
+        self.service_domains, self.service_definitions, self.domain_definitions, self.api_definitions = \
+            self.load_service_domains(self.service_definition_file_name,
+                                      self.domain_definition_file_name,
+                                      self.api_definition_file_name)
         self.index = 0
 
     def generate_plantuml_script(self):
@@ -843,14 +848,14 @@ class CallChainRender:
 
     def is_critical_api(self, service, api):
         key = '{0}:{1}'.format(service, api)
-        if key in self.service_apis:
-            return self.service_apis[key]['critical']
+        if key in self.api_definitions:
+            return self.api_definitions[key]['critical']
         return False
 
     def get_api_link(self, service, api):
         key = '{0}:{1}'.format(service, api)
-        if key in self.service_apis:
-            return self.service_apis[key]['link']
+        if key in self.api_definitions:
+            return self.api_definitions[key]['link']
         return ''
 
     def parse_service_domain(self, service, api):
@@ -885,15 +890,18 @@ class CallChainRender:
         if pcallee is None or pdomain is None or callee is None or domain is None:
             return True
         rule_defined, rule_passed = False, False
+        pkey = '{0}:{1}'.format(pcallee, pdomain)
+        key = '{0}:{1}'.format(callee, domain)
         for item in DOMAIN_LEVEL_COMPLIANCE_RULES:
-            if '{0}:{1}'.format(pcallee, pdomain) == item[0] or '{0}:{1}'.format(callee, domain) == item[1]:
+            if re.match(re.compile(pkey), item[0]) is not None or re.match(re.compile(key), item[1]) is not None:
                 rule_defined = True
-                if '{0}:{1}'.format(pcallee, pdomain) == item[0] and '{0}:{1}'.format(callee, domain) == item[1]:
+                if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
                     rule_passed = True
+                    break
         if rule_defined and not rule_passed:
             return False
         for item in DOMAIN_LEVEL_VIOLATION_RULES:
-            if '{0}:{1}'.format(pcallee, pdomain) == item[0] and '{0}:{1}'.format(callee, domain) == item[1]:
+            if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
                 return False
         return True
 
@@ -901,15 +909,17 @@ class CallChainRender:
         if pcallee is None or pdomain is None or papi is None or callee is None or domain is None or api is None:
             return True
         rule_defined, rule_passed = False, False
+        pkey = '{0}:{1}:{2}'.format(pcallee, pdomain, papi)
+        key = '{0}:{1}:{2}'.format(callee, domain, api)
         for item in API_LEVEL_COMPLIANCE_RULES:
-            if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] or '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
+            if re.match(re.compile(pkey), item[0]) is not None or re.match(re.compile(key), item[1]) is not None:
                 rule_defined = True
-                if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] and '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
+                if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
                     rule_passed = True
         if rule_defined and not rule_passed:
             return False
         for item in API_LEVEL_VIOLATION_RULES:
-            if '{0}:{1}:{2}'.format(pcallee, pdomain, papi) == item[0] and '{0}:{1}:{2}'.format(callee, domain, api) == item[1]:
+            if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
                 return False
         return True
 
@@ -919,8 +929,8 @@ class CallChainRender:
         rule_defined, rule_passed = False, False
         pkey = '{0}:{1}'.format(s2, a2)
         key = '{0}:{1}'.format(s1, a1)
-        ptags = self.service_apis[pkey]['tags'] if pkey in self.service_apis else None
-        tags = self.service_apis[key]['tags'] if pkey in self.service_apis else None
+        ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else None
+        tags = self.api_definitions[key]['tags'] if pkey in self.api_definitions else None
         if ptags is None or tags is None:
             return True
         for item in TAG_LEVEL_COMPLIANCE_RULES:
@@ -982,11 +992,50 @@ class CallChainRender:
             calls = json.loads(f.read(MAX_FILE_READ_LENGTH))
         return calls
 
-    def load_service_domains(self, domain_file_name):
+    def load_service_domains(self, service_definition_file_name, domain_definition_file_name, api_definition_file_name):
         service_domains = {}
-        service_apis = {}
+        service_definitions = {}
+        domain_definitions = {}
+        api_definitions = {}
+
+        # parse service definitions
         first_row = True
-        with open(domain_file_name) as f:
+        with open(service_definition_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                service, group, tags, scope = row
+                if service == '' or group == '':
+                    continue
+                if service not in service_definitions:
+                    service_definitions[service] = {
+                        'group': group,
+                        'tags': [x.strip() for x in tags.split(';') if x.strip() != ''],
+                        'scope': scope
+                    }
+        # parse domain definitions
+        first_row = True
+        with open(domain_definition_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                service, domain, tags, scope = row
+                if service == '' or domain == '':
+                    continue
+                if service not in domain_definitions:
+                    domain_definitions[service] = {}
+                if domain not in domain_definitions[service]:
+                    domain_definitions[service][domain] = {
+                        'tags': [x.strip() for x in tags.split(';') if x.strip() != ''],
+                        'scope': scope
+                    }
+        # parse api definitions
+        first_row = True
+        with open(api_definition_file_name) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1002,12 +1051,12 @@ class CallChainRender:
                 if api not in service_domains[service][domain]:
                     service_domains[service][domain].add(api)
                 key = '{0}:{1}'.format(service, api)
-                if key not in service_apis:
-                    service_apis[key] = {
+                if key not in api_definitions:
+                    api_definitions[key] = {
                         'critical': True if critical == 'Y' else False,
                         'tags': [x.strip() for x in tags.split(';') if x.strip() != ''],
                         'link': link,
                         'scope': scope
                     }
-        return service_domains, service_apis
+        return service_domains, service_definitions, domain_definitions, api_definitions
 

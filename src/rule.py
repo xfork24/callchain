@@ -248,12 +248,12 @@ SERVICE_LEVEL_COMPLIANCE_RULES = {
     'LCOS': [],
     'WBC': ['RateAPI\\-Offline', 'Saturn'],
     'IDCS': [],
-    'SLS-Location': [],
-    'EP-Service': [],
+    'SLS\\-Location': [],
+    'EP\\-Service': [],
     'LCS': ['3PL', 'SPX', 'Celery'],
     'PIS': ['3PL', 'SPX', 'Saturn'],
     'RateAPI': ['LCOS', 'Saturn'],
-    'RateAPI-Offline': ['LCOS'],
+    'RateAPI\\-Offline': ['LCOS'],
     '3PL': ['LCS', 'PIS'],
     'SPX': ['LCS', 'PIS'],
     'OMS': ['LPS'],
@@ -282,5 +282,5 @@ TAG_LEVEL_COMPLIANCE_RULES = {
 }
 
 TAG_LEVEL_VIOLATION_RULES = {
-    ('order_creation', 'routing'),
+    ('order_creation', 'product_rule'),
 }
