@@ -226,7 +226,15 @@ CALLSTACK_END_RULES = [
     'Saturn', 'Celery',
 ]
 
-API_HYPERLINK_RULES = {
+SLS_SERVICE_GROUPS = {
+    'Fulfillment Gateway': ['LPS'],
+    'Core Fulfillment Capability': ['LFS', 'LLS', 'SmartRouting'],
+    'Tracking': ['LTS', 'TrackingPN'],
+    'Fundamental Capability': ['LCOS', 'WBC', 'IDCS', 'SLS\\-Location', 'EP\\-Service'],
+    '3PL Gateway': ['LCS', 'PIS'],
+    'Finance': ['RateAPI', 'RateAPI\\-Offline'],
+    'Async Jobs': ['.*Job', '.*_task'],
+    'External Dependencies': ['Saturn', 'Celery', '3PL', 'SPX', 'OMS'],
 }
 
 SERVICE_LEVEL_COMPLIANCE_RULES = {

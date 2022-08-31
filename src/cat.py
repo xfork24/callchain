@@ -695,12 +695,11 @@ class CallChainRender:
         if len(stack) > 1:
             pcaller, pcallee, papi = stack[-2]
         compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
+        hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
         if compliance:
             return '"{0}" -> "{1}" ++ : {2}{3}\n'.format(caller, callee, api, tags)
         else:
-            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}{4}</font>\n'.format(caller, callee, api,
-                                                                                           CRITICAL_CALL_HIGHLIGHT_COLOR,
-                                                                                           tags)
+            return '"{0}" -[#{3}]-> "{1}" ++ #{3}: <font color={3}>{2}{4}</font>\n'.format(caller, callee, api, hclr, tags)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
