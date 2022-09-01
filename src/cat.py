@@ -38,7 +38,22 @@ class CatDataManager:
         self.output_path = output_path
         self.extra_callchain = list() if extra_callchain is None else extra_callchain
         self.extra_rules = [None, None, None, None, None] if extra_rules is None else extra_rules
-        self.links = CALLCHAIN_LINK_RULES if links is None else links
+        self.link_file_name = DEPENDS_FOLDER + LINK_RULE_FILE_NAME
+        self.links = self.load_callchain_link_rules()
+
+    def load_callchain_link_rules(self):
+        links = {}
+        first_row = True
+        with open(self.link_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            idx = 1
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                links[idx] = [i if i != '' else '*' for i in row]
+                idx = idx + 1
+        return links
 
     def get_sample_messages(self, cat_domain, cat_type, cat_name, cat_date=None):
         if cat_date is None:
@@ -206,7 +221,7 @@ class CatDataManager:
                     cat_type = rule[7]
                     cat_name = rule[8]
                     log.info('callchain link rule matched, {0}, {1}'.format(cc, rule))
-                    parsed = self.get_call_overwrite('-', rule[9], rule[10], rule[11], None, None)
+                    parsed = self.get_call_overwrite(str(rule_id), rule[9], rule[10], rule[11], None, None)
                     if parsed is not None:
                         links.append(parsed)
                     samples = self.get_sample_messages(cat_domain, cat_type, cat_name, cat_date)
@@ -320,11 +335,74 @@ class CatDataManager:
 class CallChainParser:
     def __init__(self, extra_node_overwrite_rules=None, extra_edge_overwrite_rules=None, extra_rename_rules=None,
                  extra_combine_rules=None, extra_delete_rules=None):
+        self.node_overwrite_rule_file = DEPENDS_FOLDER + NODE_OVERWRITE_RULE_FILE_NAME
+        self.edge_overwrite_rule_file = DEPENDS_FOLDER + EDGE_OVERWRITE_RULE_FILE_NAME
+        self.name_overwrite_rule_file = DEPENDS_FOLDER + NAME_OVERWRITE_RULE_FILE_NAME
+        self.combine_rule_file = DEPENDS_FOLDER + COMBINE_RULE_FILE_NAME
+        self.delete_rule_file = DEPENDS_FOLDER + DELETE_RULE_FILE_NAME
+        self.stack_end_rule_file = DEPENDS_FOLDER + STACK_END_RULE_FILE_NAME
+        self.node_overwrite_rules, self.edge_overwrite_rules, self.name_overwrite_rules, self.combine_rules, self.delete_rules, self.stack_end_rules = self.load_callchain_parse_rules()
         self.extra_node_overwrite_rules = {} if extra_node_overwrite_rules is None else extra_node_overwrite_rules
         self.extra_edge_overwrite_rules = {} if extra_edge_overwrite_rules is None else extra_edge_overwrite_rules
         self.extra_rename_rules = list() if extra_rename_rules is None else extra_rename_rules
         self.extra_combine_rules = list() if extra_combine_rules is None else extra_combine_rules
         self.extra_delete_rules = list() if extra_delete_rules is None else extra_delete_rules
+
+    def load_callchain_parse_rules(self):
+        node_overwrite_rules = {}
+        edge_overwrite_rules = {}
+        name_overwrite_rules = list()
+        combine_rules = list()
+        delete_rules = list()
+        stack_end_rules = list()
+        first_row = True
+        with open(self.node_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                pattern, rename = row
+                node_overwrite_rules[pattern] = rename
+        with open(self.edge_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                pattern, rename = row
+                edge_overwrite_rules[pattern] = rename
+        with open(self.name_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                name_overwrite_rules.append([i if i != '' else '*' for i in row])
+        with open(self.combine_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                node, = row
+                name_overwrite_rules.append(node)
+        with open(self.delete_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                delete_rules.append([i if i != '' else '*' for i in row])
+        with open(self.stack_end_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                node, = row
+                stack_end_rules.append(node)
+        return node_overwrite_rules, edge_overwrite_rules, name_overwrite_rules, combine_rules, delete_rules, stack_end_rules
 
     def parse_call_count(self, calls):
         call_map = {}
@@ -385,7 +463,6 @@ class CallChainParser:
         callchain = self.refine_delete_rules(callchain)
         callchain = self.refine_remove_duplicate(callchain)
         callchain = self.refine_remove_reentry(callchain)
-        callchain = self.refine_hide_infra_delete_rules(callchain)
         return callchain
 
     def refine_calls(self, calls):
@@ -401,7 +478,7 @@ class CallChainParser:
         cur_stack = list()
         for cc in callchain:
             if len(cur_stack) > 0:
-                if cc[1] in CALLSTACK_END_RULES:
+                if cc[1] in self.stack_end_rules:
                     stacks.append(copy.deepcopy(cur_stack))
                     cur_stack = list()
                     cur_stack.append((cc[1], cc[3]))
@@ -426,7 +503,7 @@ class CallChainParser:
         cur_stack = list()
         for cc in callchain:
             if len(cur_stack) > 0:
-                if cc[1] in CALLSTACK_END_RULES:
+                if cc[1] in self.stack_end_rules:
                     stacks.append(copy.deepcopy(cur_stack))
                     cur_stack = list()
                     cur_stack.append((cc[1], cc[2], cc[3]))
@@ -481,12 +558,11 @@ class CallChainParser:
         callchain = self.refine_rename_rules(callchain)
         callchain = self.refine_delete_rules(callchain)
         callchain = self.refine_remove_reentry(callchain)
-        callchain = self.refine_hide_infra_delete_rules(callchain)
         return callchain[0] if len(callchain) != 0 else None
 
     def refine_node_overwrite_rules(self, callchain):
         refined = callchain
-        for rules in [self.extra_node_overwrite_rules, CALLCHAIN_NODE_OVERWRITE_RULES]:
+        for rules in [self.extra_node_overwrite_rules, self.node_overwrite_rules]:
             for rule, overwrite in rules.items():
                 refined = list()
                 for cc in callchain:
@@ -502,7 +578,7 @@ class CallChainParser:
 
     def refine_edge_overwrite_rules(self, callchain):
         refined = callchain
-        for rules in [self.extra_edge_overwrite_rules, CALLCHAIN_EDGE_OVERWRITE_RULES]:
+        for rules in [self.extra_edge_overwrite_rules, self.edge_overwrite_rules]:
             for rule, overwrite in rules.items():
                 refined = list()
                 for cc in callchain:
@@ -516,7 +592,7 @@ class CallChainParser:
 
     def refine_rename_rules(self, callchain):
         refined = callchain
-        for rules in [self.extra_rename_rules, CALLCHAIN_RENAME_RULES]:
+        for rules in [self.extra_rename_rules, self.name_overwrite_rules]:
             for rule in rules:
                 refined = list()
                 for cc in callchain:
@@ -543,7 +619,7 @@ class CallChainParser:
 
     def refine_combine_rules(self, callchain):
         refined = callchain
-        for rules in [self.extra_combine_rules, CALLCHAIN_COMBINE_RULES]:
+        for rules in [self.extra_combine_rules, self.combine_rules]:
             for rule in rules:
                 refined = list()
                 exists = set()
@@ -567,7 +643,7 @@ class CallChainParser:
 
     def refine_delete_rules(self, callchain):
         refined = callchain
-        for rules in [self.extra_delete_rules, CALLCHAIN_DELETE_RULES]:
+        for rules in [self.extra_delete_rules, self.delete_rules]:
             for rule in rules:
                 refined = list()
                 for cc in callchain:
@@ -654,10 +730,11 @@ class CallChainRender:
         self.rule_violation_report_name = sub_folder + 'rules.report.txt'
         # configuration files
         depends_folder = DEPENDS_FOLDER
-        self.service_definition_file_name = depends_folder + SERVICE_DEFINITION_FILE_NAME
-        self.domain_definition_file_name = depends_folder + DOMAIN_DEFINITION_FILE_NAME
-        self.api_definition_file_name = depends_folder + API_DEFINITION_FILE_NAME
-        self.rule_definition_file_name = depends_folder + RULE_DEFINITION_FILE_NAME
+        self.service_definition_file = depends_folder + SERVICE_DEFINITION_FILE_NAME
+        self.domain_definition_file = depends_folder + DOMAIN_DEFINITION_FILE_NAME
+        self.api_definition_file = depends_folder + API_DEFINITION_FILE_NAME
+        self.rule_definition_file = depends_folder + RULE_DEFINITION_FILE_NAME
+        self.stack_end_rule_file = depends_folder + STACK_END_RULE_FILE_NAME
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
@@ -667,7 +744,7 @@ class CallChainRender:
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
         self.service_domains, self.service_definitions, self.service_groups, self.domain_definitions, self.api_definitions = self.load_service_domains()
-        self.callchain_rules = self.load_callchain_rules()
+        self.callchain_rules, self.stack_end_rules = self.load_callchain_rules()
         self.index = 0
 
     def generate_plantuml_script(self):
@@ -692,7 +769,7 @@ class CallChainRender:
                 else:
                     cur_stack.append((cc[1], cc[2], cc[3]))
                 f.write(self.render_plantuml_call(cur_stack))
-                if cur_stack[-1][1] in CALLSTACK_END_RULES:
+                if cur_stack[-1][1] in self.stack_end_rules:
                     f.write('return\n')
                     cur_stack = cur_stack[:-1]
             f.write('return\n\n')
@@ -706,7 +783,8 @@ class CallChainRender:
         if compliance:
             return '"{0}" -> "{1}" ++ : {2}{3}\n'.format(caller, callee, api, tags)
         else:
-            return '"{0}" -[#{3}]> "{1}" ++ #{3}: <font color={3}>{2}{4}</font>\n'.format(caller, callee, api, hclr, tags)
+            return '"{0}" -[#{3}]> "{1}" ++ #{3}: <font color={3}>{2}{4}</font>\n'.format(caller, callee, api, hclr,
+                                                                                          tags)
 
     def render_callchain(self, show_label=False, show_tooltip=True, show_link=True, show_order=True):
         g = graphviz.Digraph(self.graph_name + '_callchain', filename=self.callchain_dot_name)
@@ -723,7 +801,7 @@ class CallChainRender:
                     cur_stack.append((cc[1], cc[2], cc[3]))
             else:
                 cur_stack.append((cc[1], cc[2], cc[3]))
-            if cur_stack[-1][1] in CALLSTACK_END_RULES:
+            if cur_stack[-1][1] in self.stack_end_rules:
                 cur_stack = cur_stack[:-1]
             # rendering
             edge_url = self.parse_edge_url(cc[1], cc[2], cc[3])
@@ -1053,8 +1131,9 @@ class CallChainRender:
 
     def load_callchain_rules(self):
         callchain_rules = list()
+        stack_end_rules = list()
         first_row = True
-        with open(self.rule_definition_file_name) as f:
+        with open(self.rule_definition_file) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1079,7 +1158,15 @@ class CallChainRender:
                     'callee_tag': callee_tag,
                 }
                 callchain_rules.append(rule)
-        return callchain_rules
+        with open(self.stack_end_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                node, = row
+                stack_end_rules.append(node)
+        return callchain_rules, stack_end_rules
 
     def load_service_domains(self):
         service_domains = {}
@@ -1090,7 +1177,7 @@ class CallChainRender:
 
         # parse service definitions
         first_row = True
-        with open(self.service_definition_file_name) as f:
+        with open(self.service_definition_file) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1115,7 +1202,7 @@ class CallChainRender:
                 service_groups[group].append(s)
         # parse domain definitions
         first_row = True
-        with open(self.domain_definition_file_name) as f:
+        with open(self.domain_definition_file) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1134,7 +1221,7 @@ class CallChainRender:
                     }
         # parse api definitions
         first_row = True
-        with open(self.api_definition_file_name) as f:
+        with open(self.api_definition_file) as f:
             csv_reader = csv.reader(f, delimiter=',')
             for row in csv_reader:
                 if first_row:
@@ -1159,4 +1246,3 @@ class CallChainRender:
                         'scope': scope
                     }
         return service_domains, service_definitions, service_groups, domain_definitions, api_definitions
-

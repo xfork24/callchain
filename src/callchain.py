@@ -19,6 +19,13 @@ def initialize():
         (GOOGLE_SHEET_DOMAIN_TAB_URL, DEPENDS_FOLDER + DOMAIN_DEFINITION_FILE_NAME),
         (GOOGLE_SHEET_API_TAB_URL, DEPENDS_FOLDER + API_DEFINITION_FILE_NAME),
         (GOOGLE_SHEET_RULE_TAB_URL, DEPENDS_FOLDER + RULE_DEFINITION_FILE_NAME),
+        (GOOGLE_SHEET_NODE_OVERWRITE_TAB_URL, DEPENDS_FOLDER + NODE_OVERWRITE_RULE_FILE_NAME),
+        (GOOGLE_SHEET_EDGE_OVERWRITE_TAB_URL, DEPENDS_FOLDER + EDGE_OVERWRITE_RULE_FILE_NAME),
+        (GOOGLE_SHEET_NAME_OVERWRITE_TAB_URL, DEPENDS_FOLDER + NAME_OVERWRITE_RULE_FILE_NAME),
+        (GOOGLE_SHEET_COMBINE_TAB_URL, DEPENDS_FOLDER + COMBINE_RULE_FILE_NAME),
+        (GOOGLE_SHEET_DELETE_TAB_URL, DEPENDS_FOLDER + DELETE_RULE_FILE_NAME),
+        (GOOGLE_SHEET_LINK_TAB_URL, DEPENDS_FOLDER + LINK_RULE_FILE_NAME),
+        (GOOGLE_SHEET_STACK_END_TAB_URL, DEPENDS_FOLDER + STACK_END_RULE_FILE_NAME),
     ]
     for (url, file_name) in depends:
         r = requests.get(url)
@@ -69,8 +76,7 @@ if __name__ == '__main__':
                 calls = list()
                 original_calls = list()
                 for entrypoint in scenario['entrypoints']:
-                    occ, ocl = CatDataManager(scenario_path, extra_callchain,
-                                              extra_rules).get_callchain_and_report_with_links(*entrypoint)
+                    occ, ocl = CatDataManager(scenario_path, extra_callchain, extra_rules).get_callchain_and_report_with_links(*entrypoint)
                     cc = CallChainParser(*extra_rules).refine_callchain(occ)
                     cl = CallChainParser(*extra_rules).refine_calls(ocl)
                     original_callchain += occ
