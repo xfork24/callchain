@@ -13,7 +13,12 @@ import os
 import json
 
 
-def initialize():
+def initialize(init=True):
+    if not init:
+        log.info('Using local configurations')
+        return
+    else:
+        log.info('Downloading latest configurations')
     depends = [
         (GOOGLE_SHEET_SERVICE_TAB_URL, DEPENDS_FOLDER + SERVICE_DEFINITION_FILE_NAME),
         (GOOGLE_SHEET_DOMAIN_TAB_URL, DEPENDS_FOLDER + DOMAIN_DEFINITION_FILE_NAME),
@@ -41,8 +46,7 @@ if __name__ == '__main__':
     all_scenarios = [FULFILLMENT_SCENARIOS]
     sub_folder_name = 'fulfillment_scenarios'
 
-    log.info('Downloading latest configurations')
-    initialize()
+    initialize(False)
 
     for scenarios in all_scenarios:
         for name, scenario in scenarios.items():

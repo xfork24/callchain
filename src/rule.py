@@ -33,7 +33,7 @@ CALLCHAIN_NODE_OVERWRITE_RULES = {
     '(API\\.idcs\\-server\\-live\\-*)': 'IDCS',
     '(RabbitMQ\\.rabbitmq\\.i\\.ssc\\-2\\.ctl\\.sz\\.shopee\\.io)': 'RabbitMQ',
     '(LocalCacheReport|LocalCache|LayerCache|LayeredCache|Cache|Redis\\.proxy\\.cache\\-codis[0-9]\\-ctl\\.i\\.sz\\.shopee\\.io|Redis:proxy\\.cache\\-codis[0-9]\\-ctl.i.sz.shopee.io:*|RateLimit)': 'Redis',
-    '^(MySQL:*|CdtDbQueryTimes|CdtGetInfo)$': 'MySQL',
+    '^(MySQL:.*|CdtDbQueryTimes|CdtGetInfo)$': 'MySQL',
     '^(PN\\-Kafka|WBC\\-Kafka)$': 'Kafka',
     '^Es$': 'ElasticSearch',
     '(Task\\.Send|Task\\.Invoke)': 'Saturn',
@@ -73,7 +73,7 @@ CALLCHAIN_DELETE_RULES = [
     ('*', '*', 'HTTPRequest', '*', '*', '*'),
     ('*', '*', 'CatMNCalcThreePlAsf', '*', '*', '*'),
     ('*', '*', 'MonitorApi', '*', '*', '*'),
-    ('*', '*', 'ThirdParty_*', '*', '*', '*'),
+    ('*', '*', 'ThirdParty_.*', '*', '*', '*'),
     ('*', '*', 'ContainerRequest', '*', '*', '*'),
     ('*', '*', 'ExternalCall', '*', '*', '*'),
     ('*', '*', 'SyncStatus', '*', '*', '*'),
@@ -89,7 +89,7 @@ CALLCHAIN_DELETE_RULES = [
     ('*', '*', 'LPS\\-LiveTest', '*', '*', '*'),
     ('*', '*', 'LiveTestAPI', '*', '*', '*'),
 
-    ('*', '*', '*', 'DiffResult*', '*', '*'),
+    ('*', '*', '*', 'DiffResult.*', '*', '*'),
 ]
 
 CALLCHAIN_HIDE_INFRA_DELETE_RULES = [
