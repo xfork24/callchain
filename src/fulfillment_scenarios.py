@@ -11,8 +11,8 @@ FULFILLMENT_SCENARIOS = {
         'extra_node_overwrite_rules': {},
         'extra_edge_overwrite_rules': {},
         'extra_rename_rules': [
-            ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', '2:LTS;3:DoTrackingExceptionAndMapAndDesc'),
-            ('*', 'PIS', '(api|ResourceAPI)', '*', '*', '*', '2:3PL'),
+            ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', 'Callee:LTS;API:DoTrackingExceptionAndMapAndDesc'),
+            ('*', 'PIS', '(api|ResourceAPI)', '*', '*', '*', 'Callee:3PL'),
         ],
         'extra_delete_rules': [
             ('*', 'OrderCreatedTrackingUpdateJob', 'GetTrackingFromLTS', '*', '*', '*'),
@@ -37,8 +37,8 @@ FULFILLMENT_SCENARIOS = {
         'extra_node_overwrite_rules': {},
         'extra_edge_overwrite_rules': {},
         'extra_rename_rules': [
-            ('*', 'TrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', '2:LTS;3:DoTrackingExceptionAndMapAndDesc'),
-            ('*', 'PIS', '(API|ResourceAPI)', '*', '*', '*', '2:3PL'),
+            ('*', 'TrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', 'Callee:LTS;API:DoTrackingExceptionAndMapAndDesc'),
+            ('*', 'PIS', '(API|ResourceAPI)', '*', '*', '*', 'Callee:3PL'),
         ],
         'extra_delete_rules': [
             ('*', 'OMS', '*', '*', '*', '*'),
@@ -48,6 +48,6 @@ FULFILLMENT_SCENARIOS = {
         'name': 'push_tracking',
         'region': 'ID',
         'reload': False,
-        'enabled': False,
+        'enabled': True,
     },
 }

@@ -48,8 +48,8 @@ CALLCHAIN_EDGE_OVERWRITE_RULES = {
 # Scenario specific renaming rules should be defined in scenario specific places because it has many possible mappings.
 CALLCHAIN_RENAME_RULES = [
     # (event_id, callee, caller, api, reserved, reserved, index:rename_to)
-    ("*", "PIS", "Kafka", "ProduceTrackingPushMessage", '*', '*', '2:Saturn'),
-    ('*', '(OrderCreateJob|UpdateLogisticInfoToOmsJob)', 'Task\\.Retry', '(OrderCreate/OrderCreateJob|OrderTnNotify/UpdateLogisticInfoToOmsJob)', '*', '*', '2:Saturn'),
+    ("*", "PIS", "Kafka", "ProduceTrackingPushMessage", '*', '*', 'Callee:Saturn'),
+    ('*', '(OrderCreateJob|UpdateLogisticInfoToOmsJob)', 'Task\\.Retry', '(OrderCreate/OrderCreateJob|OrderTnNotify/UpdateLogisticInfoToOmsJob)', '*', '*', 'Callee:Saturn'),
 ]
 
 CALLCHAIN_COMBINE_RULES = ['Redis', 'Kafka', 'MySQL']

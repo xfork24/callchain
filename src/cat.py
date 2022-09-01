@@ -120,7 +120,9 @@ class CatDataManager:
             if root_df is None:
                 continue
             root_frame_name, root_call_name = self.parse_root_frame_name(root_df.iloc[[0]])
-            all_callchain += [self.get_call_overwrite('-', 'External', root_frame_name, root_call_name, '', '')]
+            parsed = self.get_call_overwrite('-', 'External', root_frame_name, root_call_name, '', '')
+            if parsed is not None:
+                all_callchain += [parsed]
             all_callchain += self.parse_callchain(root_df, root_frame_name)
         return all_callchain
 
@@ -592,6 +594,14 @@ class CallChainParser:
 
     def refine_rename_rules(self, callchain):
         refined = callchain
+        rename_map = {
+            'id': 0,
+            'caller': 1,
+            'callee': 2,
+            'api': 3,
+            'info1': 4,
+            'info2': 5,
+        }
         for rules in [self.extra_rename_rules, self.name_overwrite_rules]:
             for rule in rules:
                 refined = list()
@@ -609,8 +619,8 @@ class CallChainParser:
                         cc_new = list(cc)
                         parts = rule[6].split(';')
                         for part in parts:
-                            index, new_name = part.split(':')
-                            cc_new[int(index)] = new_name
+                            key, new_name = part.split(':')
+                            cc_new[rename_map[key.lower()]] = new_name
                         refined.append(cc_new)
                     else:
                         refined.append(cc)
