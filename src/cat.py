@@ -941,10 +941,8 @@ class CallChainRender:
         else:
             pdomain = self.parse_service_domain(pcallee, papi)
             domain = self.parse_service_domain(callee, api)
-            pkey = '{0}:{1}'.format(pcallee, papi)
-            key = '{0}:{1}'.format(callee, api)
-            ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else ['*']
-            tags = self.api_definitions[key]['tags'] if key in self.api_definitions else ['*']
+            ptags = self.parse_tags(pcallee, pdomain, papi)
+            tags = self.parse_tags(callee, domain, api)
             compliance, tags = self.validate_callchain_rules(callee, domain, api, tags, pcallee, pdomain, papi, ptags)
             if compliance:
                 compliance = True
@@ -985,6 +983,18 @@ class CallChainRender:
                     if api in apis:
                         domain = d
         return domain
+
+    def parse_tags(self, callee, domain, api):
+        key = '{0}:{1}'.format(callee, api)
+        tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
+        if tags is None:
+            key = '{0}:{1}'.format(callee, domain)
+            tags = self.domain_definitions[key]['tags'] if key in self.domain_definitions else None
+            if tags is None:
+                key = '{0}'.format(callee)
+                tags = self.service_definitions[key]['tags'] if key in self.service_definitions else None
+                tags = tags if tags is not None else ['*']
+        return tags
 
     def validate_service_level_rules(self, s1, s2):
         if s1 is None or s2 is None:
@@ -1200,7 +1210,7 @@ class CallChainRender:
                     tags = [x.strip() for x in tags.split(';') if x.strip() != '']
                     service_definitions[service] = {
                         'group': group,
-                        'tags': tags if len(tags) > 0 else ['*'],
+                        'tags': tags if len(tags) > 0 else None,
                         'scope': scope
                     }
         # parse service groups
@@ -1226,7 +1236,7 @@ class CallChainRender:
                 if domain not in domain_definitions[service]:
                     tags = [x.strip() for x in tags.split(';') if x.strip() != '']
                     domain_definitions[service][domain] = {
-                        'tags': tags if len(tags) > 0 else ['*'],
+                        'tags': tags if len(tags) > 0 else None,
                         'scope': scope
                     }
         # parse api definitions
@@ -1251,7 +1261,7 @@ class CallChainRender:
                     tags = [x.strip() for x in tags.split(';') if x.strip() != '']
                     api_definitions[key] = {
                         'critical': True if critical == 'Y' else False,
-                        'tags': tags if len(tags) > 0 else ['*'],
+                        'tags': tags if len(tags) > 0 else None,
                         'link': link,
                         'scope': scope
                     }

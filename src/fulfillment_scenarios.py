@@ -25,7 +25,7 @@ FULFILLMENT_SCENARIOS = {
         'name': 'create_order',
         'region': 'ID',
         'reload': False,
-        'enabled': False,
+        'enabled': True,
     },
     'push_tracking_id': {
         'entrypoints': [

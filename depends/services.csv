@@ -1,6 +1,6 @@
 Service,Group,Tags,Scope
 External,External Caller,,
-LPS,Fulfillment Gateway,,
+LPS,Fulfillment Gateway,caller_tag,
 LFS,Core Fulfillment Capability,,
 LLS,Core Fulfillment Capability,,
 SmartRouting,Core Fulfillment Capability,,

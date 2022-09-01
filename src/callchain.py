@@ -46,7 +46,7 @@ if __name__ == '__main__':
     all_scenarios = [FULFILLMENT_SCENARIOS]
     sub_folder_name = 'fulfillment_scenarios'
 
-    initialize(False)
+    initialize()
 
     for scenarios in all_scenarios:
         for name, scenario in scenarios.items():
