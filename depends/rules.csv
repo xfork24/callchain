@@ -5,3 +5,4 @@ Deny,,,,order_creation,,,,product_rule
 Deny,RateAPI,,,,LCOS,,,
 Deny,LCS,,,,LCOS,,,
 Deny,OrderCreatedTrackingUpdateJob,,,,LTS,,,
+Deny,LPS,,,,LFS,,,
