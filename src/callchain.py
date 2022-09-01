@@ -2,20 +2,39 @@
 
 from fulfillment_scenarios import FULFILLMENT_SCENARIOS
 
-from define import log
+from define import *
 from cat import (
     CatDataManager,
     CallChainParser,
     CallChainRender,
 )
+import requests
 import os
 import json
+
+
+def initialize():
+    depends = [
+        (GOOGLE_SHEET_SERVICE_TAB_URL, DEPENDS_FOLDER + SERVICE_DEFINITION_FILE_NAME),
+        (GOOGLE_SHEET_DOMAIN_TAB_URL, DEPENDS_FOLDER + DOMAIN_DEFINITION_FILE_NAME),
+        (GOOGLE_SHEET_API_TAB_URL, DEPENDS_FOLDER + API_DEFINITION_FILE_NAME),
+        (GOOGLE_SHEET_RULE_TAB_URL, DEPENDS_FOLDER + RULE_DEFINITION_FILE_NAME),
+    ]
+    for (url, file_name) in depends:
+        r = requests.get(url)
+        if not r.ok:
+            log.error('failed to download service definition google sheet, use local instead')
+        with open(file_name, 'w') as csv_f:
+            csv_f.write(str(r.content))
 
 
 if __name__ == '__main__':
     # check the following two lines first before running.
     all_scenarios = [FULFILLMENT_SCENARIOS]
     sub_folder_name = 'fulfillment_scenarios'
+
+    log.info('Downloading latest configurations')
+    initialize()
 
     for scenarios in all_scenarios:
         for name, scenario in scenarios.items():
@@ -27,22 +46,27 @@ if __name__ == '__main__':
             if not os.path.exists(scenario_path):
                 os.makedirs(scenario_path, exist_ok=True)
             reload = scenario['reload']
-            extra_node_overwrite_rules = scenario['extra_node_overwrite_rules'] if 'extra_node_overwrite_rules' in scenario else None
-            extra_edge_overwrite_rules = scenario['extra_edge_overwrite_rules'] if 'extra_edge_overwrite_rules' in scenario else None
+            extra_node_overwrite_rules = scenario[
+                'extra_node_overwrite_rules'] if 'extra_node_overwrite_rules' in scenario else None
+            extra_edge_overwrite_rules = scenario[
+                'extra_edge_overwrite_rules'] if 'extra_edge_overwrite_rules' in scenario else None
             extra_rename_rules = scenario['extra_rename_rules'] if 'extra_rename_rules' in scenario else None
             extra_combine_rules = scenario['extra_combine_rules'] if 'extra_combine_rules' in scenario else None
             extra_delete_rules = scenario['extra_delete_rules'] if 'extra_delete_rules' in scenario else None
-            extra_rules = (extra_node_overwrite_rules, extra_edge_overwrite_rules, extra_rename_rules, extra_combine_rules, extra_delete_rules)
+            extra_rules = (
+            extra_node_overwrite_rules, extra_edge_overwrite_rules, extra_rename_rules, extra_combine_rules,
+            extra_delete_rules)
             extra_callchain = scenario['extra_callchain'] if 'extra_callchain' in scenario else list()
             highlights = scenario['highlights'] if 'highlights' in scenario else None
             if reload:
-                log.info('Processing scenario with reload: {0}'.format(name))
+                log.info('Processing and reload scenario: {0}'.format(name))
                 callchain = list()
                 original_callchain = list()
                 calls = list()
                 original_calls = list()
                 for entrypoint in scenario['entrypoints']:
-                    occ, ocl = CatDataManager(scenario_path, extra_callchain, extra_rules).get_callchain_and_report_with_links(*entrypoint)
+                    occ, ocl = CatDataManager(scenario_path, extra_callchain,
+                                              extra_rules).get_callchain_and_report_with_links(*entrypoint)
                     cc = CallChainParser(*extra_rules).refine_callchain(occ)
                     cl = CallChainParser(*extra_rules).refine_calls(ocl)
                     original_callchain += occ

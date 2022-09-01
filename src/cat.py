@@ -653,10 +653,11 @@ class CallChainRender:
         self.puml_file_name = sub_folder + 'sequence.puml'
         self.rule_violation_report_name = sub_folder + 'rules.report.txt'
         # configuration files
-        self.service_definition_file_name = '../services.csv'
-        self.domain_definition_file_name = '../domains.csv'
-        self.api_definition_file_name = '../apis.csv'
-        self.rule_definition_file_name = '../rules.csv'
+        depends_folder = DEPENDS_FOLDER
+        self.service_definition_file_name = depends_folder + SERVICE_DEFINITION_FILE_NAME
+        self.domain_definition_file_name = depends_folder + DOMAIN_DEFINITION_FILE_NAME
+        self.api_definition_file_name = depends_folder + API_DEFINITION_FILE_NAME
+        self.rule_definition_file_name = depends_folder + RULE_DEFINITION_FILE_NAME
         self.load_exist = load_exist
         self.load_original = load_original
         self.extra_rules = (None, None, None) if extra_rules is None else extra_rules

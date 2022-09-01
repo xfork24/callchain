@@ -1,7 +1,0 @@
-Action,Caller Service,Caller Domain,Caller API,Caller Tag,Callee Service,Callee Domain,Callee API,Callee Tag
-Deny,LFS,Fulfillment,,,RateAPI,FeeCalculation,,
-Deny,LFS,Fulfillment,/api/sls/order/create,,RateAPI,FeeCalculation,/api/sls-basic/freight/calc_esf_weight,
-Deny,,,,order_creation,,,,product_rule
-Deny,RateAPI,,,,LCOS,,,
-Deny,LCS,,,,LCOS,,,
-Deny,OrderCreatedTrackingUpdateJob,,,,LTS,,,
