@@ -31,8 +31,9 @@ def initialize():
         r = requests.get(url)
         if not r.ok:
             log.error('failed to download service definition google sheet, use local instead')
-        with open(file_name, 'w') as csv_f:
-            csv_f.write(r.text.replace('"', ''))
+        else:
+            with open(file_name, 'w') as csv_f:
+                csv_f.write(r.text.replace('"', ''))
 
 
 if __name__ == '__main__':
