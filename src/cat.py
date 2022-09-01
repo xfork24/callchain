@@ -666,12 +666,12 @@ class CallChainRender:
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
         self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
         self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
-        self.service_domains, self.service_definitions, self.domain_definitions, self.api_definitions = self.load_service_domains()
+        self.service_domains, self.service_definitions, self.service_groups, self.domain_definitions, self.api_definitions = self.load_service_domains()
         self.callchain_rules = self.load_callchain_rules()
         self.index = 0
 
     def generate_plantuml_script(self):
-        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain, SLS_SERVICE_GROUPS)
+        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain, self.service_groups)
         with open(self.puml_file_name, 'w') as f:
             f.write('@startuml\n\n')
             for name, services in service_groups.items():
@@ -1095,6 +1095,7 @@ class CallChainRender:
     def load_service_domains(self):
         service_domains = {}
         service_definitions = {}
+        service_groups = {}
         domain_definitions = {}
         api_definitions = {}
 
@@ -1115,6 +1116,13 @@ class CallChainRender:
                         'tags': [x.strip() for x in tags.split(';') if x.strip() != ''],
                         'scope': scope
                     }
+        # parse service groups
+        for s, info in service_definitions.items():
+            group = info['group']
+            if group != '':
+                if group not in service_groups:
+                    service_groups[group] = list()
+                service_groups[group].append(s)
         # parse domain definitions
         first_row = True
         with open(self.domain_definition_file_name) as f:
@@ -1158,5 +1166,5 @@ class CallChainRender:
                         'link': link,
                         'scope': scope
                     }
-        return service_domains, service_definitions, domain_definitions, api_definitions
+        return service_domains, service_definitions, service_groups, domain_definitions, api_definitions
 

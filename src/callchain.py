@@ -25,7 +25,7 @@ def initialize():
         if not r.ok:
             log.error('failed to download service definition google sheet, use local instead')
         with open(file_name, 'w') as csv_f:
-            csv_f.write(str(r.content))
+            csv_f.write(r.text.replace('"', ''))
 
 
 if __name__ == '__main__':
@@ -54,8 +54,12 @@ if __name__ == '__main__':
             extra_combine_rules = scenario['extra_combine_rules'] if 'extra_combine_rules' in scenario else None
             extra_delete_rules = scenario['extra_delete_rules'] if 'extra_delete_rules' in scenario else None
             extra_rules = (
-            extra_node_overwrite_rules, extra_edge_overwrite_rules, extra_rename_rules, extra_combine_rules,
-            extra_delete_rules)
+                extra_node_overwrite_rules,
+                extra_edge_overwrite_rules,
+                extra_rename_rules,
+                extra_combine_rules,
+                extra_delete_rules
+            )
             extra_callchain = scenario['extra_callchain'] if 'extra_callchain' in scenario else list()
             highlights = scenario['highlights'] if 'highlights' in scenario else None
             if reload:
