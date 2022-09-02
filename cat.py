@@ -561,7 +561,7 @@ class CallChainParser:
         return node_overwrite_rules, edge_overwrite_rules, name_overwrite_rules, combine_rules, delete_rules, stack_end_rules
 
 class CallChainRender:
-    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', output_path=None,
+    def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID',
                  load_exist=False, load_original=True, extra_rules=None):
         self.callchain = callchain
         self.calls = calls
@@ -569,7 +569,7 @@ class CallChainRender:
         self.highlights = list() if highlights is None else highlights
         self.graph_name = graph_name
         self.region = region
-        sub_folder = '{0}/{1}/{2}/{3}/'.format(WORKING_DIR, DEFAULT_OUTPUT_SUB_FOLDER_NAME, region, graph_name) if output_path is None else output_path
+        sub_folder = '{0}/{1}/{2}/{3}/'.format(WORKING_DIR, DEFAULT_OUTPUT_SUB_FOLDER_NAME, region, graph_name)
         # original files
         self.original_callchain_file_name = sub_folder + ORIGINAL_CALLCHAIN_FILE_NAME
         self.original_calls_file_name = sub_folder + ORIGINAL_CALLS_FILE_NAME
