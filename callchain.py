@@ -1,6 +1,5 @@
 #!./bin/python
 
-
 from conf import *
 from scenarios import ALL_SCENARIOS
 from cat import initialize, CatDataManager, CallChainParser, CallChainRender

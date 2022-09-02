@@ -26,7 +26,7 @@ ALL_SCENARIOS = {
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],
         'name': 'create_order',
         'region': 'ID',
-        'reload': True,
+        'reload': False,
         'enabled': True,
     },
     'push_tracking_id': {
@@ -51,7 +51,7 @@ ALL_SCENARIOS = {
         # 'highlights': [],
         'name': 'push_tracking',
         'region': 'ID',
-        'reload': True,
+        'reload': False,
         'enabled': True,
     },
 }
