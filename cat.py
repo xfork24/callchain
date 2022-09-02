@@ -2,7 +2,6 @@
 import copy
 import datetime
 import json
-import logging
 import random
 import time
 import requests
@@ -13,47 +12,51 @@ from tabulate import tabulate
 import jsonpath_ng as jp
 import pandas as pd
 from bs4 import BeautifulSoup
-from define import *
-from rule import *
+from conf import *
 
-"""
-    {refined}: return refined callchain
-    {sample}: get one sampled information
-    {callchain}: return callchain information
-    {with_links}: return callchain with links
-"""
 
+def initialize(init=True):
+    if not init:
+        log.info('Using local configurations')
+        return
+    else:
+        log.info('Downloading latest configurations')
+    depends = [
+        (GS_SERVICE_TAB_URL, DEPENDS_FOLDER + SERVICE_DEFINITION_FILE_NAME),
+        (GS_DOMAIN_TAB_URL, DEPENDS_FOLDER + DOMAIN_DEFINITION_FILE_NAME),
+        (GS_API_TAB_URL, DEPENDS_FOLDER + API_DEFINITION_FILE_NAME),
+        (GS_RULE_TAB_URL, DEPENDS_FOLDER + RULE_DEFINITION_FILE_NAME),
+        (GS_NODE_OVERWRITE_TAB_URL, DEPENDS_FOLDER + NODE_OVERWRITE_RULE_FILE_NAME),
+        (GS_EDGE_OVERWRITE_TAB_URL, DEPENDS_FOLDER + EDGE_OVERWRITE_RULE_FILE_NAME),
+        (GS_NAME_OVERWRITE_TAB_URL, DEPENDS_FOLDER + NAME_OVERWRITE_RULE_FILE_NAME),
+        (GS_COMBINE_TAB_URL, DEPENDS_FOLDER + COMBINE_RULE_FILE_NAME),
+        (GS_DELETE_TAB_URL, DEPENDS_FOLDER + DELETE_RULE_FILE_NAME),
+        (GS_LINK_TAB_URL, DEPENDS_FOLDER + LINK_RULE_FILE_NAME),
+        (GS_STACK_END_TAB_URL, DEPENDS_FOLDER + STACK_END_RULE_FILE_NAME),
+    ]
+    for (url, file_name) in depends:
+        r = requests.get(url)
+        if not r.ok:
+            log.error('failed to download service definition google sheet, use local instead')
+        else:
+            with open(file_name, 'w') as csv_f:
+                csv_f.write(r.text.replace('"', ''))
 
 class CatDataManager:
     def __init__(self, output_path='./output',
                  extra_callchain=None,
-                 extra_rules=None,
-                 links=None):
+                 extra_rules=None):
         random.seed(time.time())
-        self.parsed_links = set()
-        self.parsed_calls = set()
-        self.calls = list()
-        self.call_map = {}
         self.index = 0
         self.output_path = output_path
-        self.extra_callchain = list() if extra_callchain is None else extra_callchain
-        self.extra_rules = [None, None, None, None, None] if extra_rules is None else extra_rules
-        self.link_file_name = DEPENDS_FOLDER + LINK_RULE_FILE_NAME
-        self.links = self.load_callchain_link_rules()
-
-    def load_callchain_link_rules(self):
-        links = {}
-        first_row = True
-        with open(self.link_file_name) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            idx = 1
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                links[idx] = [i if i != '' else '*' for i in row]
-                idx = idx + 1
-        return links
+        self.extra_callchain = extra_callchain
+        self.extra_rules = extra_rules
+        self.callchain = list()
+        self.calls = list()
+        self.links = self.load_callchain_link_rules(DEPENDS_FOLDER + LINK_RULE_FILE_NAME)
+        self.parsed_links = set()
+        self.parsed_calls = set()
+        self.call_map = {}
 
     def get_sample_messages(self, cat_domain, cat_type, cat_name, cat_date=None):
         if cat_date is None:
@@ -66,11 +69,10 @@ class CatDataManager:
         if response is None:
             return None
         jdata = json.loads(response.content)
-        msg_paths = list()
-        msg_paths.append(
-            '$.m_machines.All.m_types."{0}".m_names."{1}".m_statusDists."0".m_sampleMessages'.format(cat_type,
-                                                                                                     cat_name))
-        msg_paths.append('$.m_machines.All.m_types."{0}".m_statusDists."0".m_sampleMessages'.format(cat_type))
+        msg_paths = [
+            '$.m_machines.All.m_types."{0}".m_names."{1}".m_statusDists."0".m_sampleMessages'.format(cat_type, cat_name),
+            '$.m_machines.All.m_types."{0}".m_statusDists."0".m_sampleMessages'.format(cat_type),
+        ]
         for path in msg_paths:
             jp_expr = jp.parse(path)
             result = jp_expr.find(jdata)
@@ -83,16 +85,12 @@ class CatDataManager:
 
     def get_sample_message(self, cat_domain, cat_type, cat_name, cat_date=None):
         samples = self.get_sample_messages(cat_domain, cat_type, cat_name, cat_date)
-        if samples is None:
-            return None
-        return samples[random.randrange(0, len(samples) - 1)]
+        return None if samples is None else samples[random.randrange(0, len(samples) - 1)]
 
     def get_sample_message_report(self, cat_domain, cat_type, cat_name, cat_date=None, to_root=True):
         message_id = self.get_sample_message(cat_domain, cat_type, cat_name, cat_date)
         log.info('sample message Id: {0}'.format(message_id))
-        if message_id is None:
-            return None
-        return self.get_message_report(message_id, to_root)
+        return None if message_id is None else self.get_message_report(message_id, to_root)
 
     def get_sample_callchain(self, cat_domain, cat_type, cat_name, cat_date=None, to_root=True):
         root_df = self.get_sample_message_report(cat_domain, cat_type, cat_name, cat_date, to_root)
@@ -126,27 +124,17 @@ class CatDataManager:
             all_callchain += self.parse_callchain(root_df, root_frame_name)
         return all_callchain
 
-    def parse_root_frame_name(self, frame):
-        root_frame_name = frame[1].tolist()[0]
-        root_frame_call = frame[2].tolist()[0]
-        return root_frame_name, root_frame_call
-
-    def get_callchain_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10,
-                                 cat_date=None, to_root=True, region='ID'):
-        all_callchain = self.get_callchain(cat_domain, cat_type, cat_name, sample_count, cat_date, to_root)
-        all_callchain += self.extra_callchain
+    def parse_callchain_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10,
+                                   cat_date=None, to_root=True, region='ID'):
+        self.callchain = self.get_callchain(cat_domain, cat_type, cat_name, sample_count, cat_date, to_root)
+        if self.extra_callchain is not None:
+            self.callchain += self.extra_callchain
         for i in range(CALLCHAIN_LINK_ANALYSIS_LIMIT):
-            all_callchain += self.parse_callchain_link(all_callchain, link_sample_count, cat_date, region)
-        return all_callchain
-
-    def get_callchain_and_report_with_links(self, cat_domain, cat_type, cat_name, sample_count=1, link_sample_count=10,
-                                            cat_date=None, to_root=True, region='ID'):
-        original_callchain = self.get_callchain_with_links(cat_domain, cat_type, cat_name, sample_count,
-                                                           link_sample_count, cat_date, to_root, region)
-        return original_callchain, self.calls
+            self.callchain += self.parse_callchain_link(self.callchain, link_sample_count, cat_date, region)
+        return self.callchain, self.calls
 
     def get_message_report(self, message_id, to_root=True):
-        url = CAT_API_ENDPOINT + CAT_MESSAGE_SUB_URL.format(message_id)
+        url = CAT_API_ENDPOINT + CAT_MESSAGE_REPORT_SUB_URL.format(message_id)
         headers = self.build_headers()
         response = self.get_cat_url(url, headers)
         if response is None:
@@ -155,10 +143,10 @@ class CatDataManager:
         header = df[0].iloc[[0]][0]
         root_id = header.split(' ')[-3]
         if root_id == 'null' or not to_root:
-            # already in root message or we don't go to root
+            # already in root message, or we don't go to root
             return df.iloc[1:]
         else:
-            url = CAT_API_ENDPOINT + CAT_MESSAGE_SUB_URL.format(root_id)
+            url = CAT_API_ENDPOINT + CAT_MESSAGE_REPORT_SUB_URL.format(root_id)
             response = self.get_cat_url(url, headers)
             if response is None:
                 return None
@@ -201,7 +189,7 @@ class CatDataManager:
         return callchain
 
     def parse_callchain_link(self, callchain, link_sample_count=1, cat_date=None, region='ID'):
-        callchain = CallChainParser(*self.extra_rules).refine_callchain(callchain)
+        callchain = callchain if self.extra_rules is None else CallChainParser(*self.extra_rules).refine_callchain(callchain)
         links = list()
         for rule_id, rule in self.links.items():
             for cc in callchain:
@@ -265,8 +253,8 @@ class CatDataManager:
                     if td.find('a'):
                         a = td.find('a')
                         if a.text.find('RootLogview') != -1 or a.text.find('ParentLogview') != -1:
-                            txts = td.findAll(text=True, recursive=True)
-                            for txt in txts:
+                            texts = td.findAll(text=True, recursive=True)
+                            for txt in texts:
                                 txt = self.parse_text(txt)
                                 if txt == 'RootLogview' or txt == 'ParentLogview' or len(txt) == 0:
                                     continue
@@ -284,8 +272,12 @@ class CatDataManager:
                         txt = self.parse_text(td.text)
                         record.append(None if len(txt) == 0 else txt)
                 records.append(record)
-        columns = [0, 1, 2, 3, 4]
-        return pd.DataFrame(data=records, columns=columns)
+        return pd.DataFrame(data=records, columns=[0, 1, 2, 3, 4])
+
+    def parse_root_frame_name(self, frame):
+        root_frame_name = frame[1].tolist()[0]
+        root_frame_call = frame[2].tolist()[0]
+        return root_frame_name, root_frame_call
 
     def parse_text(self, txt):
         return txt.replace('&nbsp;', '').replace('\xa0', '').strip()
@@ -316,7 +308,7 @@ class CatDataManager:
             start = tmp.find(message_report_sub_url) + len(message_report_sub_url)
             key = tmp[start:].lower()
             if key in self.call_map:
-                if self.call_map[key] > ENDPOINT_DEFAULT_CALL_LIMIT:
+                if self.call_map[key] > CAT_SINGLE_ENDPOINT_CALL_LIMIT:
                     return None
                 else:
                     self.call_map[key] = self.call_map[key] + 1
@@ -333,129 +325,37 @@ class CatDataManager:
             return None
         return response
 
+    def load_callchain_link_rules(self, link_file_name):
+        links = {}
+        first_row = True
+        with open(link_file_name) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            idx = 1
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                links[idx] = [i if i != '' else '*' for i in row]
+                idx = idx + 1
+        return links
 
 class CallChainParser:
     def __init__(self, extra_node_overwrite_rules=None, extra_edge_overwrite_rules=None, extra_rename_rules=None,
                  extra_combine_rules=None, extra_delete_rules=None):
-        self.node_overwrite_rule_file = DEPENDS_FOLDER + NODE_OVERWRITE_RULE_FILE_NAME
-        self.edge_overwrite_rule_file = DEPENDS_FOLDER + EDGE_OVERWRITE_RULE_FILE_NAME
-        self.name_overwrite_rule_file = DEPENDS_FOLDER + NAME_OVERWRITE_RULE_FILE_NAME
-        self.combine_rule_file = DEPENDS_FOLDER + COMBINE_RULE_FILE_NAME
-        self.delete_rule_file = DEPENDS_FOLDER + DELETE_RULE_FILE_NAME
-        self.stack_end_rule_file = DEPENDS_FOLDER + STACK_END_RULE_FILE_NAME
-        self.node_overwrite_rules, self.edge_overwrite_rules, self.name_overwrite_rules, self.combine_rules, self.delete_rules, self.stack_end_rules = self.load_callchain_parse_rules()
+
         self.extra_node_overwrite_rules = {} if extra_node_overwrite_rules is None else extra_node_overwrite_rules
         self.extra_edge_overwrite_rules = {} if extra_edge_overwrite_rules is None else extra_edge_overwrite_rules
         self.extra_rename_rules = list() if extra_rename_rules is None else extra_rename_rules
         self.extra_combine_rules = list() if extra_combine_rules is None else extra_combine_rules
         self.extra_delete_rules = list() if extra_delete_rules is None else extra_delete_rules
-
-    def load_callchain_parse_rules(self):
-        node_overwrite_rules = {}
-        edge_overwrite_rules = {}
-        name_overwrite_rules = list()
-        combine_rules = list()
-        delete_rules = list()
-        stack_end_rules = list()
-        first_row = True
-        with open(self.node_overwrite_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                pattern, rename = row
-                node_overwrite_rules[pattern] = rename
-        with open(self.edge_overwrite_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                pattern, rename = row
-                edge_overwrite_rules[pattern] = rename
-        with open(self.name_overwrite_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                name_overwrite_rules.append([i if i != '' else '*' for i in row])
-        with open(self.combine_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                node, = row
-                name_overwrite_rules.append(node)
-        with open(self.delete_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                delete_rules.append([i if i != '' else '*' for i in row])
-        with open(self.stack_end_rule_file) as f:
-            csv_reader = csv.reader(f, delimiter=',')
-            for row in csv_reader:
-                if first_row:
-                    first_row = False
-                    continue
-                node, = row
-                stack_end_rules.append(node)
-        return node_overwrite_rules, edge_overwrite_rules, name_overwrite_rules, combine_rules, delete_rules, stack_end_rules
-
-    def parse_call_count(self, calls):
-        call_map = {}
-        for call in calls:
-            caller = call[1]
-            callee = call[2]
-            api = call[3]
-            if caller not in call_map:
-                call_map[caller] = {}
-            if callee not in call_map[caller]:
-                call_map[caller][callee] = {}
-            if api not in call_map[caller][callee]:
-                call_map[caller][callee][api] = 1
-            else:
-                call_map[caller][callee][api] = call_map[caller][callee][api] + 1
-        return call_map
-
-    def parse_stack_count(self, stacks):
-        stack_map = {}
-        for stack in stacks:
-            stack_key = ''
-            for call in stack:
-                caller = call[0]
-                api = call[1]
-                if api is None:
-                    stack_key += '{0}'.format(caller)
-                else:
-                    stack_key += '{0}-{1}->'.format(caller, api)
-            if stack_key not in stack_map:
-                stack_map[stack_key] = 1
-            else:
-                stack_map[stack_key] = stack_map[stack_key] + 1
-        return stack_map
-
-    def parse_stack_count_v2(self, stacks):
-        stack_map = {}
-        for stack in stacks:
-            stack_key = ''
-            for call in stack:
-                caller = call[0]
-                callee = call[1]
-                api = call[2]
-                if stack_key == '':
-                    stack_key += '{0}-{1}->{2}'.format(caller, api, callee)
-                else:
-                    stack_key += '-{0}->{1}'.format(api, callee)
-            if stack_key not in stack_map:
-                stack_map[stack_key] = 1
-            else:
-                stack_map[stack_key] = stack_map[stack_key] + 1
-        return stack_map
+        self.node_overwrite_rules, self.edge_overwrite_rules, self.name_overwrite_rules, self.combine_rules, self.delete_rules, self.stack_end_rules = \
+            self.load_callchain_parse_rules(
+                DEPENDS_FOLDER + NODE_OVERWRITE_RULE_FILE_NAME,
+                DEPENDS_FOLDER + EDGE_OVERWRITE_RULE_FILE_NAME,
+                DEPENDS_FOLDER + NAME_OVERWRITE_RULE_FILE_NAME,
+                DEPENDS_FOLDER + COMBINE_RULE_FILE_NAME,
+                DEPENDS_FOLDER + DELETE_RULE_FILE_NAME,
+                DEPENDS_FOLDER + STACK_END_RULE_FILE_NAME)
 
     def refine_callchain(self, callchain):
         callchain = self.refine_node_overwrite_rules(callchain)
@@ -468,99 +368,12 @@ class CallChainParser:
         return callchain
 
     def refine_calls(self, calls):
-        refined_calls = list()
-        for call in calls:
-            record = self.refine_single_call(call)
-            if record is not None:
-                refined_calls.append(record)
-        return refined_calls
-
-    def parse_stacks(self, callchain):
-        stacks = list()
-        cur_stack = list()
-        for cc in callchain:
-            if len(cur_stack) > 0:
-                if cc[1] in self.stack_end_rules:
-                    stacks.append(copy.deepcopy(cur_stack))
-                    cur_stack = list()
-                    cur_stack.append((cc[1], cc[3]))
-                    cur_stack.append((cc[2], None))
-                elif cc[1] == cur_stack[-1][0]:
-                    cur_stack[-1] = (cc[1], cc[3])
-                    cur_stack.append((cc[2], None))
-                else:
-                    stacks.append(copy.deepcopy(cur_stack))
-                    while len(cur_stack) > 0 and cur_stack[-1][0] != cc[1]:
-                        cur_stack = cur_stack[:-1]
-                    if len(cur_stack) > 0:
-                        cur_stack[-1] = (cc[1], cc[3])
-                    cur_stack.append((cc[2], None))
-            else:
-                cur_stack.append((cc[1], cc[3]))
-                cur_stack.append((cc[2], None))
-        return stacks
-
-    def parse_stacks_v2(self, callchain):
-        stacks = list()
-        cur_stack = list()
-        for cc in callchain:
-            if len(cur_stack) > 0:
-                if cc[1] in self.stack_end_rules:
-                    stacks.append(copy.deepcopy(cur_stack))
-                    cur_stack = list()
-                    cur_stack.append((cc[1], cc[2], cc[3]))
-                elif cc[1] == cur_stack[-1][1]:
-                    cur_stack.append((cc[1], cc[2], cc[3]))
-                else:
-                    stacks.append(copy.deepcopy(cur_stack))
-                    while len(cur_stack) > 0 and cur_stack[-1][1] != cc[1]:
-                        cur_stack = cur_stack[:-1]
-                    cur_stack.append((cc[1], cc[2], cc[3]))
-            else:
-                cur_stack.append((cc[1], cc[2], cc[3]))
-        return stacks
-
-    def parse_highlight_stacks(self, stacks, highlights):
-        highlight_stacks = list()
-        for highlight in highlights:
-            for stack in stacks:
-                match = False
-                for item in stack:
-                    caller, callee, api = item
-                    if api == highlight:
-                        match = True
-                        break
-                if match:
-                    highlight_stacks.append(stack)
-        return highlight_stacks
-
-    def parse_service_groups(self, callchain, sg_definitions):
-        service_groups = {}
-        for name, services in sg_definitions.items():
-            for cc in callchain:
-                for idx in range(1, 3):
-                    match = False
-                    for service in services:
-                        regexp = re.compile('^{0}$'.format(service))
-                        if re.match(regexp, cc[idx]) is not None:
-                            match = True
-                            break
-                    if match:
-                        if name not in service_groups:
-                            service_groups[name] = [cc[idx]]
-                        else:
-                            if cc[idx] not in service_groups[name]:
-                                service_groups[name].append(cc[idx])
-        return service_groups
-
-    def refine_single_call(self, callchain):
-        callchain = [callchain]
-        callchain = self.refine_node_overwrite_rules(callchain)
-        callchain = self.refine_edge_overwrite_rules(callchain)
-        callchain = self.refine_rename_rules(callchain)
-        callchain = self.refine_delete_rules(callchain)
-        callchain = self.refine_remove_reentry(callchain)
-        return callchain[0] if len(callchain) != 0 else None
+        calls = self.refine_node_overwrite_rules(calls)
+        calls = self.refine_edge_overwrite_rules(calls)
+        calls = self.refine_rename_rules(calls)
+        calls = self.refine_delete_rules(calls)
+        calls = self.refine_remove_reentry(calls)
+        return calls
 
     def refine_node_overwrite_rules(self, callchain):
         refined = callchain
@@ -594,14 +407,7 @@ class CallChainParser:
 
     def refine_rename_rules(self, callchain):
         refined = callchain
-        rename_map = {
-            'id': 0,
-            'caller': 1,
-            'callee': 2,
-            'api': 3,
-            'info1': 4,
-            'info2': 5,
-        }
+        rename_map = {'id': 0, 'caller': 1, 'callee': 2, 'api': 3, 'info1': 4, 'info2': 5}
         for rules in [self.extra_rename_rules, self.name_overwrite_rules]:
             for rule in rules:
                 refined = list()
@@ -671,25 +477,6 @@ class CallChainParser:
                 callchain = refined
         return refined
 
-    def refine_hide_infra_delete_rules(self, callchain):
-        refined = callchain
-        for rule in CALLCHAIN_HIDE_INFRA_DELETE_RULES:
-            refined = list()
-            for cc in callchain:
-                matched = True
-                for i in range(6):
-                    if rule[i] == '*':
-                        continue  # speed up
-                    else:
-                        regexp = re.compile(rule[i])
-                        if re.match(regexp, cc[i]) is None:
-                            matched = False
-                            break
-                if not matched:
-                    refined.append(cc)
-            callchain = refined
-        return refined
-
     def refine_remove_reentry(self, callchain):
         refined = list()
         for cc in callchain:
@@ -711,6 +498,67 @@ class CallChainParser:
                 exists.add(key)
         return refined
 
+    def load_callchain_parse_rules(self,
+                                   node_overwrite_rule_file,
+                                   edge_overwrite_rule_file,
+                                   name_overwrite_rule_file,
+                                   combine_rule_file,
+                                   delete_rule_file,
+                                   stack_end_rule_file):
+        node_overwrite_rules = {}
+        edge_overwrite_rules = {}
+        name_overwrite_rules = list()
+        combine_rules = list()
+        delete_rules = list()
+        stack_end_rules = list()
+        first_row = True
+        with open(node_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                pattern, rename = row
+                node_overwrite_rules[pattern] = rename
+        with open(edge_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                pattern, rename = row
+                edge_overwrite_rules[pattern] = rename
+        with open(name_overwrite_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                name_overwrite_rules.append([i if i != '' else '*' for i in row])
+        with open(combine_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                node, = row
+                name_overwrite_rules.append(node)
+        with open(delete_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                delete_rules.append([i if i != '' else '*' for i in row])
+        with open(stack_end_rule_file) as f:
+            csv_reader = csv.reader(f, delimiter=',')
+            for row in csv_reader:
+                if first_row:
+                    first_row = False
+                    continue
+                node, = row
+                stack_end_rules.append(node)
+        return node_overwrite_rules, edge_overwrite_rules, name_overwrite_rules, combine_rules, delete_rules, stack_end_rules
 
 class CallChainRender:
     def __init__(self, callchain, calls, highlights=None, graph_name='sample', region='ID', output_path=None,
@@ -721,23 +569,20 @@ class CallChainRender:
         self.highlights = list() if highlights is None else highlights
         self.graph_name = graph_name
         self.region = region
-        sub_folder = '../{0}/{1}/{2}/'.format(DEFAULT_OUTPUT_SUB_FOLDER_NAME, region,
-                                              graph_name) if output_path is None else output_path
+        sub_folder = '{0}/{1}/{2}/{3}/'.format(WORKING_DIR, DEFAULT_OUTPUT_SUB_FOLDER_NAME, region, graph_name) if output_path is None else output_path
         # original files
-        self.original_callchain_file_name = sub_folder + 'original_callchain.txt'
-        self.original_calls_file_name = sub_folder + 'original_calls.txt'
+        self.original_callchain_file_name = sub_folder + ORIGINAL_CALLCHAIN_FILE_NAME
+        self.original_calls_file_name = sub_folder + ORIGINAL_CALLS_FILE_NAME
         # parsed files
-        self.callchain_file_name = sub_folder + 'callchain.txt'
-        self.calls_file_name = sub_folder + 'calls.txt'
-        self.stacks_file_name = sub_folder + 'stacks.txt'
-        self.highlight_stack_file_name = sub_folder + 'highlight_stacks.txt'
+        self.callchain_file_name = sub_folder + PARSED_CALLCHAIN_FILE_NAME
+        self.calls_file_name = sub_folder + PARSED_CALLS_FILE_NAME
+        self.stacks_file_name = sub_folder + PARSED_STACK_FILE_NAME
+        self.highlight_stack_file_name = sub_folder + HIGHLIGHT_STACK_FILE_NAME
         # report files
-        self.callchain_dot_name = sub_folder + 'callchain.dot'
-        self.calls_dot_name = sub_folder + 'calls.dot'
-        self.calls_report_name = sub_folder + 'calls.report.txt'
-        self.highlight_stack_report_name = sub_folder + 'highlight_stacks.report.txt'
-        self.puml_file_name = sub_folder + 'sequence.puml'
-        self.rule_violation_report_name = sub_folder + 'rules.report.txt'
+        self.callchain_dot_name = sub_folder + CALLCHAIN_DOT_FILE_NAME
+        self.calls_report_name = sub_folder + CALLS_REPORT_FILE_NAME
+        self.highlight_stack_report_name = sub_folder + HIGHLIGHT_STACK_REPORT_FILE_NAME
+        self.puml_file_name = sub_folder + CALLCHAIN_PLANTUML_FILE_NAME
         # configuration files
         depends_folder = DEPENDS_FOLDER
         self.service_definition_file = depends_folder + SERVICE_DEFINITION_FILE_NAME
@@ -747,18 +592,18 @@ class CallChainRender:
         self.stack_end_rule_file = depends_folder + STACK_END_RULE_FILE_NAME
         self.load_exist = load_exist
         self.load_original = load_original
-        self.extra_rules = (None, None, None) if extra_rules is None else extra_rules
+        self.extra_rules = (None, None, None, None, None) if extra_rules is None else extra_rules
+        self.service_domains, self.service_definitions, self.service_groups, self.domain_definitions, self.api_definitions = self.load_service_domains()
+        self.callchain_rules, self.stack_end_rules = self.load_callchain_rules()
         if self.load_exist:
             self.callchain = CallChainParser(*self.extra_rules).refine_callchain(self.load_exist_callchain())
             self.calls = CallChainParser(*self.extra_rules).refine_calls(self.load_exist_calls())
-        self.stacks = CallChainParser(*self.extra_rules).parse_stacks_v2(self.callchain)
-        self.highlight_stacks = CallChainParser(*self.extra_rules).parse_highlight_stacks(self.stacks, self.highlights)
-        self.service_domains, self.service_definitions, self.service_groups, self.domain_definitions, self.api_definitions = self.load_service_domains()
-        self.callchain_rules, self.stack_end_rules = self.load_callchain_rules()
+        self.stacks = self.parse_stacks()
+        self.highlight_stacks = self.parse_highlight_stacks()
         self.index = 0
 
     def generate_plantuml_script(self):
-        service_groups = CallChainParser(self.extra_rules).parse_service_groups(self.callchain, self.service_groups)
+        service_groups = self.parse_service_groups()
         with open(self.puml_file_name, 'w') as f:
             f.write('@startuml\n\n')
             for name, services in service_groups.items():
@@ -788,7 +633,7 @@ class CallChainRender:
     def render_plantuml_call(self, stack):
         caller, callee, api = stack[-1]
         pcaller, pcallee, papi = self.get_prev_call_frame(stack, (caller, callee, api))
-        compliance, tags = self.parse_call_frame_v2(caller, callee, api, pcaller, pcallee, papi)
+        compliance, tags = self.parse_call_frame(caller, callee, api, pcaller, pcallee, papi)
         hclr = CRITICAL_CALL_HIGHLIGHT_COLOR
         if compliance:
             return '"{0}" -> "{1}" ++ : {2}{3}\n'.format(caller, callee, api, tags)
@@ -827,7 +672,7 @@ class CallChainRender:
             else:
                 label = ''
             pcaller, pcallee, papi = self.get_prev_call_frame(cur_stack, (cc[1], cc[2], cc[3]))
-            compliance, tags = self.parse_call_frame_v2(cc[1], cc[2], cc[3], pcaller, pcallee, papi)
+            compliance, tags = self.parse_call_frame(cc[1], cc[2], cc[3], pcaller, pcallee, papi)
             if compliance:
                 g.node(cc[1], shape='box')
                 g.node(cc[2], shape='box')
@@ -850,7 +695,7 @@ class CallChainRender:
         return g, self.callchain
 
     def render_highlight_stacks(self):
-        parsed_stacks = CallChainParser(self.extra_rules).parse_stack_count_v2(self.stacks)
+        parsed_stacks = self.parse_stack_count()
         rule_table = list()
         for rule in self.highlights:
             stack_table = list()
@@ -863,8 +708,8 @@ class CallChainRender:
         with open(self.highlight_stack_report_name, 'w') as f:
             f.write(html)
 
-    def render_calls_v2(self):
-        parsed_calls = CallChainParser(self.extra_rules).parse_call_count(self.calls)
+    def render_calls(self):
+        parsed_calls = self.parse_call_count()
         caller_table = list()
         for caller, details in parsed_calls.items():
             callee_table = list()
@@ -880,55 +725,7 @@ class CallChainRender:
         with open(self.calls_report_name, 'w') as f:
             f.write(html)
 
-    def render_calls(self):
-        g = graphviz.Digraph(self.graph_name + '_calls', filename=self.calls_dot_name)
-        g.format = 'svg'
-        parsed_calls = CallChainParser(self.extra_rules).parse_call_count(self.calls)
-        for caller, details in parsed_calls.items():
-            sub = graphviz.Digraph(caller)
-            sub.engine = 'twopi'
-            n1 = self.gen_node_name()
-            sub.node(n1, label=caller, shape='box')
-            for callee, detail in details.items():
-                table = list()
-                for api, count in detail.items():
-                    table.append([api, count])
-                label = tabulate(table, ['API', 'Count'], tablefmt="simple")
-                n2 = self.gen_node_name()
-                sub.node(n2, label=label, shape='box')
-                sub.edge(n1, n2)
-            g.subgraph(sub)
-        return g, self.calls
-
     def parse_call_frame(self, caller, callee, api, pcaller=None, pcallee=None, papi=None):
-        tags = ''
-        if self.manual_highlight:
-            compliance = True
-            for stack in self.highlight_stacks:
-                for call in stack:
-                    caller, callee, api = call
-                    if caller == caller and callee == callee and api == api:
-                        compliance = False
-                        break
-        else:
-            pdomain = self.parse_service_domain(pcallee, papi)
-            domain = self.parse_service_domain(callee, api)
-            if self.validate_service_level_rules(caller, callee) and \
-                    self.validate_domain_level_rules(callee, domain, pcallee, pdomain) and \
-                    self.validate_api_level_rules(callee, domain, api, pcallee, pdomain, papi) and \
-                    self.validate_tag_level_rules(callee, domain, api, pcallee, pdomain, papi):
-                compliance = True
-            else:
-                compliance = False
-        if not compliance and not self.manual_highlight:
-            tags += 'x'
-        if self.is_critical_api(callee, api):
-            tags += 'c'
-        if tags != '':
-            tags = '[{0}]'.format(tags)
-        return compliance, tags
-
-    def parse_call_frame_v2(self, caller, callee, api, pcaller=None, pcallee=None, papi=None):
         tags = ''
         if self.manual_highlight:
             compliance = True
@@ -951,126 +748,6 @@ class CallChainRender:
         if tags != '':
             tags = '[{0}]'.format(tags)
         return compliance, tags
-
-    def get_prev_call_frame(self, stack, frame):
-        copied_stack = copy.deepcopy(stack)
-        copied_stack = copied_stack[:-1]
-        if len(copied_stack) == 0:
-            return None, None, None
-        while len(copied_stack) > 0 and copied_stack[-1][1] != frame[0]:
-            copied_stack = copied_stack[:-1]
-        return copied_stack[-1] if len(copied_stack) > 0 else (None, None, None)
-
-    def is_critical_api(self, service, api):
-        key = '{0}:{1}'.format(service, api)
-        if key in self.api_definitions:
-            return self.api_definitions[key]['critical']
-        return False
-
-    def get_api_link(self, service, api):
-        key = '{0}:{1}'.format(service, api)
-        if key in self.api_definitions:
-            return self.api_definitions[key]['link']
-        return ''
-
-    def parse_service_domain(self, service, api):
-        if service is None or api is None:
-            return None
-        domain = None
-        for s, domains in self.service_domains.items():
-            if service == s:
-                for d, apis in domains.items():
-                    if api in apis:
-                        domain = d
-        return domain
-
-    def parse_tags(self, callee, domain, api):
-        key = '{0}:{1}'.format(callee, api)
-        tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
-        if tags is None:
-            key = '{0}:{1}'.format(callee, domain)
-            tags = self.domain_definitions[key]['tags'] if key in self.domain_definitions else None
-            if tags is None:
-                key = '{0}'.format(callee)
-                tags = self.service_definitions[key]['tags'] if key in self.service_definitions else None
-                tags = tags if tags is not None else ['*']
-        return tags
-
-    def validate_service_level_rules(self, s1, s2):
-        if s1 is None or s2 is None:
-            return True
-        matched, key = self.re_key_in_col(s1, SERVICE_LEVEL_COMPLIANCE_RULES)
-        if matched:
-            callees = SERVICE_LEVEL_COMPLIANCE_RULES[key]
-            matched, _ = self.re_key_in_col(s2, callees)
-            if not matched:
-                return False
-        matched, key = self.re_key_in_col(s1, SERVICE_LEVEL_VIOLATION_RULES)
-        if matched:
-            callees = SERVICE_LEVEL_VIOLATION_RULES[key]
-            matched, _ = self.re_key_in_col(s2, callees)
-            if matched:
-                return False
-        return True
-
-    def validate_domain_level_rules(self, callee, domain, pcallee, pdomain):
-        if pcallee is None or pdomain is None or callee is None or domain is None:
-            return True
-        rule_defined, rule_passed = False, False
-        pkey = '{0}:{1}'.format(pcallee, pdomain)
-        key = '{0}:{1}'.format(callee, domain)
-        for item in DOMAIN_LEVEL_COMPLIANCE_RULES:
-            if re.match(re.compile(pkey), item[0]) is not None or re.match(re.compile(key), item[1]) is not None:
-                rule_defined = True
-                if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
-                    rule_passed = True
-                    break
-        if rule_defined and not rule_passed:
-            return False
-        for item in DOMAIN_LEVEL_VIOLATION_RULES:
-            if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
-                return False
-        return True
-
-    def validate_api_level_rules(self, callee, domain, api, pcallee, pdomain, papi):
-        if pcallee is None or pdomain is None or papi is None or callee is None or domain is None or api is None:
-            return True
-        rule_defined, rule_passed = False, False
-        pkey = '{0}:{1}:{2}'.format(pcallee, pdomain, papi)
-        key = '{0}:{1}:{2}'.format(callee, domain, api)
-        for item in API_LEVEL_COMPLIANCE_RULES:
-            if re.match(re.compile(pkey), item[0]) is not None or re.match(re.compile(key), item[1]) is not None:
-                rule_defined = True
-                if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
-                    rule_passed = True
-        if rule_defined and not rule_passed:
-            return False
-        for item in API_LEVEL_VIOLATION_RULES:
-            if re.match(re.compile(pkey), item[0]) is not None and re.match(re.compile(key), item[1]) is not None:
-                return False
-        return True
-
-    def validate_tag_level_rules(self, callee, domain, api, pcallee, pdomain, papi):
-        if callee is None or domain is None or api is None or pcallee is None or pdomain is None or papi is None:
-            return True
-        rule_defined, rule_passed = False, False
-        pkey = '{0}:{1}'.format(pcallee, papi)
-        key = '{0}:{1}'.format(callee, api)
-        ptags = self.api_definitions[pkey]['tags'] if pkey in self.api_definitions else None
-        tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
-        if ptags is None or tags is None:
-            return True
-        for item in TAG_LEVEL_COMPLIANCE_RULES:
-            if item[0] in ptags or item[1] in tags:
-                rule_defined = True
-                if item[0] in ptags and item[1] in tags:
-                    rule_passed = True
-        if rule_defined and not rule_passed:
-            return False
-        for item in TAG_LEVEL_VIOLATION_RULES:
-            if item[0] in ptags and item[1] in tags:
-                return False
-        return True
 
     def validate_callchain_rules(self, callee, domain, api, tags, pcallee, pdomain, papi, ptags):
         index = 2
@@ -1102,16 +779,136 @@ class CallChainRender:
             index = index + 1
         return True, ''
 
-    def re_key_in_col(self, key, col):
-        match = False
-        matched_key = ''
-        for k in col:
-            regexp = re.compile('^{0}$'.format(k))
-            if re.match(regexp, key):
-                match = True
-                matched_key = k
-                break
-        return match, matched_key
+    def get_prev_call_frame(self, stack, frame):
+        copied_stack = copy.deepcopy(stack)
+        copied_stack = copied_stack[:-1]
+        if len(copied_stack) == 0:
+            return None, None, None
+        while len(copied_stack) > 0 and copied_stack[-1][1] != frame[0]:
+            copied_stack = copied_stack[:-1]
+        return copied_stack[-1] if len(copied_stack) > 0 else (None, None, None)
+
+    def parse_call_count(self):
+        call_map = {}
+        for call in self.calls:
+            caller = call[1]
+            callee = call[2]
+            api = call[3]
+            if caller not in call_map:
+                call_map[caller] = {}
+            if callee not in call_map[caller]:
+                call_map[caller][callee] = {}
+            if api not in call_map[caller][callee]:
+                call_map[caller][callee][api] = 1
+            else:
+                call_map[caller][callee][api] = call_map[caller][callee][api] + 1
+        return call_map
+
+    def parse_stacks(self):
+        stacks = list()
+        cur_stack = list()
+        for cc in self.callchain:
+            if len(cur_stack) > 0:
+                if cc[1] in self.stack_end_rules:
+                    stacks.append(copy.deepcopy(cur_stack))
+                    cur_stack = list()
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+                elif cc[1] == cur_stack[-1][1]:
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+                else:
+                    stacks.append(copy.deepcopy(cur_stack))
+                    while len(cur_stack) > 0 and cur_stack[-1][1] != cc[1]:
+                        cur_stack = cur_stack[:-1]
+                    cur_stack.append((cc[1], cc[2], cc[3]))
+            else:
+                cur_stack.append((cc[1], cc[2], cc[3]))
+        return stacks
+
+    def parse_stack_count(self):
+        stack_map = {}
+        for stack in self.stacks:
+            stack_key = ''
+            for call in stack:
+                caller = call[0]
+                callee = call[1]
+                api = call[2]
+                if stack_key == '':
+                    stack_key += '{0}-{1}->{2}'.format(caller, api, callee)
+                else:
+                    stack_key += '-{0}->{1}'.format(api, callee)
+            if stack_key not in stack_map:
+                stack_map[stack_key] = 1
+            else:
+                stack_map[stack_key] = stack_map[stack_key] + 1
+        return stack_map
+
+    def parse_highlight_stacks(self):
+        highlight_stacks = list()
+        for highlight in self.highlights:
+            for stack in self.stacks:
+                match = False
+                for item in stack:
+                    caller, callee, api = item
+                    if api == highlight:
+                        match = True
+                        break
+                if match:
+                    highlight_stacks.append(stack)
+        return highlight_stacks
+
+    def is_critical_api(self, service, api):
+        key = '{0}:{1}'.format(service, api)
+        if key in self.api_definitions:
+            return self.api_definitions[key]['critical']
+        return False
+
+    def get_api_link(self, service, api):
+        key = '{0}:{1}'.format(service, api)
+        if key in self.api_definitions:
+            return self.api_definitions[key]['link']
+        return ''
+
+    def parse_service_groups(self):
+        service_groups = {}
+        for name, services in self.service_groups.items():
+            for cc in self.callchain:
+                for idx in range(1, 3):
+                    match = False
+                    for service in services:
+                        regexp = re.compile('^{0}$'.format(service))
+                        if re.match(regexp, cc[idx]) is not None:
+                            match = True
+                            break
+                    if match:
+                        if name not in service_groups:
+                            service_groups[name] = [cc[idx]]
+                        else:
+                            if cc[idx] not in service_groups[name]:
+                                service_groups[name].append(cc[idx])
+        return service_groups
+
+    def parse_service_domain(self, service, api):
+        if service is None or api is None:
+            return None
+        domain = None
+        for s, domains in self.service_domains.items():
+            if service == s:
+                for d, apis in domains.items():
+                    if api in apis:
+                        domain = d
+        return domain
+
+    def parse_tags(self, callee, domain, api):
+        key = '{0}:{1}'.format(callee, api)
+        tags = self.api_definitions[key]['tags'] if key in self.api_definitions else None
+        if tags is None:
+            key = '{0}:{1}'.format(callee, domain)
+            tags = self.domain_definitions[key]['tags'] if key in self.domain_definitions else None
+            if tags is None:
+                key = '{0}'.format(callee)
+                tags = self.service_definitions[key]['tags'] if key in self.service_definitions else None
+                tags = tags if tags is not None else ['*']
+        return tags
 
     def parse_edge_url(self, caller, callee, api):
         api_link = self.get_api_link(callee, api)

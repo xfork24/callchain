@@ -1,2 +1,3 @@
 Action,Caller Service,Caller Domain,Caller API,Caller Tag,Callee Service,Callee Domain,Callee API,Callee Tag
+Deny,,,,caller_tag,WBC,,,
 Deny,,,,,,,,caller_tag
