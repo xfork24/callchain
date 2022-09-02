@@ -122,7 +122,7 @@ ALL_SCENARIOS = {
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],
         'name': 'create_order',
         'region': 'ID',
-        'reload': False,
+        'reload': True,
         'enabled': True,
     },
     'push_tracking_id': {
@@ -147,7 +147,7 @@ ALL_SCENARIOS = {
         # 'highlights': [],
         'name': 'push_tracking',
         'region': 'ID',
-        'reload': False,
+        'reload': True,
         'enabled': True,
     },
 }
@@ -159,6 +159,8 @@ def initialize(init=True):
         return
     else:
         log.info('Downloading latest configurations')
+    if not os.path.exists(DEPENDS_FOLDER):
+        os.makedirs(DEPENDS_FOLDER, exist_ok=True)
     depends = [
         (GS_SERVICE_TAB_URL, DEPENDS_FOLDER + SERVICE_DEFINITION_FILE_NAME),
         (GS_DOMAIN_TAB_URL, DEPENDS_FOLDER + DOMAIN_DEFINITION_FILE_NAME),
@@ -869,8 +871,8 @@ class CallChainRender:
             compliance = True
             for stack in self.highlight_stacks:
                 for call in stack:
-                    caller, callee, api = call
-                    if caller == caller and callee == callee and api == api:
+                    h1, h2, h3 = call
+                    if h1 == caller and h2 == callee and h3 == api:
                         compliance = False
                         break
         else:
@@ -879,10 +881,6 @@ class CallChainRender:
             ptags = self.parse_tags(pcallee, pdomain, papi)
             tags = self.parse_tags(callee, domain, api)
             compliance, tags = self.validate_callchain_rules(callee, domain, api, tags, pcallee, pdomain, papi, ptags)
-            if compliance:
-                compliance = True
-            else:
-                compliance = False
         if tags != '':
             tags = '[{0}]'.format(tags)
         return compliance, tags
