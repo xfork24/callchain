@@ -12,6 +12,10 @@ SRC_FILE_LIST = [
     'cat.py',
     'callchain.py',
 ]
+HEADER = """#!./bin/python
+# Auto-generated file, edit at your own risk.
+"""
+
 IMPORTS = """
 import argparse
 import copy
@@ -31,18 +35,20 @@ import pandas as pd
 from bs4 import BeautifulSoup
 """
 
-IMPORT_STATEMENTS = [
+FILTERED_STATEMENTS = [
+    re.compile('#!\\./bin/python'),
     re.compile('^import .*$'),
     re.compile('^from .* import .*$'),
 ]
 
 if __name__ == '__main__':
-    with open('{0}/{1}'.format(DEST_DIR, GENERATE_FILE_NAME)) as f:
+    with open('{0}/{1}'.format(DEST_DIR, GENERATE_FILE_NAME), 'w') as f:
+        f.write(HEADER)
         f.write(IMPORTS)
         for file_name in SRC_FILE_LIST:
             lines = linecache.getlines('{0}/{1}'.format(SRC_DIR, file_name))
             for line in lines:
-                if any([re.match(regexp, line.strip(' \r\n\t')) for regexp in IMPORT_STATEMENTS]):
+                if any([re.match(regexp, line.strip(' \r\n\t')) for regexp in FILTERED_STATEMENTS]):
                     continue
                 f.write(line)
 

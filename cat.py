@@ -15,7 +15,6 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from conf import *
 
-
 def initialize(init=True):
     if not init:
         log.info('Using local configurations')
