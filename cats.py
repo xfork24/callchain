@@ -797,7 +797,9 @@ class CallChainRender:
                 if cur_stack[-1][1] in self.stack_end_rules:
                     f.write('return\n')
                     cur_stack = cur_stack[:-1]
-            f.write('return\n\n')
+            while len(cur_stack) > 0:
+                f.write('return\n')
+                cur_stack = cur_stack[:-1]
             f.write('@enduml\n')
 
     def render_plantuml_call(self, stack):
