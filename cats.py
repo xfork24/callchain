@@ -146,6 +146,7 @@ ALL_SCENARIOS = {
             ('*', 'StatusChangeTriggerCalcAsfJob', 'ActualShippingFee', 'StatusChangedTriggerASF', '*', '*'),
             ('*', '*', 'TrackingOperate', '*', '*', '*'),
             ('*', 'SmartRouting', '*', '*', '*', '*'),
+            ('*', '*', 'Optimistic', '*', '*', '*'),
             ('*', 'OMS', '*', '*', '*', '*'),
         ],
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],  #  Optional: highlight stacks contains specific calls
@@ -908,6 +909,7 @@ class CallChainRender:
                         compliance = False
                         break
         else:
+            pcallee = caller if pcallee is None else pcallee
             pdomain = self.parse_service_domain(pcallee, papi)
             domain = self.parse_service_domain(callee, api)
             ptags = self.parse_tags(pcallee, pdomain, papi)
