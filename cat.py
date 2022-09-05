@@ -741,6 +741,7 @@ class CallChainRender:
                         compliance = False
                         break
         else:
+            pcallee = caller if pcallee is None else pcallee
             pdomain = self.parse_service_domain(pcallee, papi)
             domain = self.parse_service_domain(callee, api)
             ptags = self.parse_tags(pcallee, pdomain, papi)

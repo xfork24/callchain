@@ -20,14 +20,14 @@ ALL_SCENARIOS = {
         'name': 'pre_fulfillment',
         'region': 'ID',
         'reload': False,
-        'enabled': True,
+        'enabled': False,
     },
     'create_order_id': {  # Must: any unique key is fine
         'entrypoints': [  # Must: define the entrypoints of your scenario, it's what your service cares and doesn't need to be the root caller
             # (cat_domain, cat_type, cat_name, sample_count, link_sample_count)
             # sample count is how many samples you want to analyze from CAT, please limit it to < 50 to avoid CAT server crash.
             # link_sample_count is how many link samples you want to analyze from CAT if one `link rule` is matched, also limit it to < 50 to avoid CAT server crash.
-            ('LFS-API-LIVE-ID', 'URL.lfs-api-live-id', '/api/sls/order/create', 1, 1),
+            ('LFS-API-LIVE-ID', 'URL.lfs-api-live-id', '/api/sls/order/create', 20, 20),
         ],
         'extra_callchain': [  # Optional: additional callchain you want to add to your scenario
             # (id, caller, callee, api, info1, info2)
@@ -50,6 +50,7 @@ ALL_SCENARIOS = {
             ('*', 'StatusChangeTriggerCalcAsfJob', 'ActualShippingFee', 'StatusChangedTriggerASF', '*', '*'),
             ('*', '*', 'TrackingOperate', '*', '*', '*'),
             ('*', 'SmartRouting', '*', '*', '*', '*'),
+            ('*', '*', 'Optimistic', '*', '*', '*'),
             ('*', 'OMS', '*', '*', '*', '*'),
         ],
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],  #  Optional: highlight stacks contains specific calls
@@ -82,6 +83,6 @@ ALL_SCENARIOS = {
         'name': 'push_tracking',
         'region': 'ID',
         'reload': False,
-        'enabled': True,
+        'enabled': False,
     },
 }
