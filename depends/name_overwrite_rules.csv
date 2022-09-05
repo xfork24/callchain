@@ -1,3 +1,0 @@
-Id,Caller,Callee,API,Info1,Info2,Rule
-,PIS,Kafka,ProduceTrackingPushMessage,,,Callee:Saturn
-,(OrderCreateJob|UpdateLogisticInfoToOmsJob),Task\.Retry,(OrderCreate/OrderCreateJob|OrderTnNotify/UpdateLogisticInfoToOmsJob),,,Callee:Saturn
