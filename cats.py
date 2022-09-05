@@ -100,7 +100,7 @@ ALL_SCENARIOS = {
     'pre_fulfillment_id': {
         'entrypoints': [
             # (cat_domain, cat_type, cat_name, sample_count, link_count)
-            ('lps-api-live-id', 'URL.lps-api-live-id', '/api/v3/logistics/checkout/integration/', 10, 10),
+            ('lps-api-live-id', 'URL.lps-api-live-id', '/api/v3/logistics/checkout/integration/', 30, 30),
         ],
         'extra_callchain': [],
         'extra_node_overwrite_rules': {
@@ -138,6 +138,7 @@ ALL_SCENARIOS = {
             # (id, caller, callee, api, info1, info2, rule)
             ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', 'Callee:LTS;API:DoTrackingExceptionAndMapAndDesc'),
             ('*', 'PIS', '(api|ResourceAPI)', '*', '*', '*', 'Callee:3PL'),
+            ('*', 'PIS', 'API', 'https://waybillcenter\\.ssc\\.shopee\\.co\\.*', '*', '*', 'Callee:WBC'),
         ],
         'extra_delete_rules': [  # Optional: additional delete rules you want to apply for your scenario
             # (id, caller, callee, api, info1, info2)

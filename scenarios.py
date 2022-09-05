@@ -42,6 +42,7 @@ ALL_SCENARIOS = {
             # (id, caller, callee, api, info1, info2, rule)
             ('*', 'OrderCreatedTrackingUpdateJob', 'TrackingAssemble', 'TrackingAssembleSuccess', '*', '*', 'Callee:LTS;API:DoTrackingExceptionAndMapAndDesc'),
             ('*', 'PIS', '(api|ResourceAPI)', '*', '*', '*', 'Callee:3PL'),
+            ('*', 'PIS', 'API', 'https://waybillcenter\\.ssc\\.shopee\\.co\\.*', '*', '*', 'Callee:WBC'),
         ],
         'extra_delete_rules': [  # Optional: additional delete rules you want to apply for your scenario
             # (id, caller, callee, api, info1, info2)
