@@ -2,6 +2,6 @@ Action,Caller Service,Caller Domain,Caller API,Caller Tag,Callee Service,Callee 
 Deny,LFS,Fulfillment,,,RateAPI,FeeCalculation,,
 Deny,,,,order_creation,,,,product_rule
 Deny,RateAPI,,,,LCOS,,,
-Deny,RateAPI\-Offline,,,,LCOS,,,
 Deny,LCS,,,,,,,
 Deny,,,,,LCS,,,
+Deny,OrderCreatedTrackingUpdateJob,,,,LTS,,,

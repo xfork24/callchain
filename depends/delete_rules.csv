@@ -36,3 +36,5 @@ Id,Caller,Callee,API,Info1,Info2
 ,,LiveTestAPI,,,
 ,,,DiffResult.*,,
 ,,ActualShippingFee,,,
+,SmartSorting,,,,
+,,SmartSorting,,,

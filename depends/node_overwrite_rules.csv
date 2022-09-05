@@ -34,3 +34,4 @@ Node Pattern,Rename To
 ^Es$,ElasticSearch
 (Task\.Send|Task\.Invoke),Saturn
 (Task\.send),Celery
+(API\.smart\-sorting\-live\-.*),SmartSorting
