@@ -19,7 +19,7 @@ ALL_SCENARIOS = {
         # 'highlights': [],
         'name': 'pre_fulfillment',
         'region': 'ID',
-        'reload': False,
+        'reload': True,
         'enabled': True,
     },
     'create_order_id': {  # Must: any unique key is fine
@@ -54,7 +54,7 @@ ALL_SCENARIOS = {
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],  #  Optional: highlight stacks contains specific calls
         'name': 'create_order',  # Must: the human-readable name of your scenario
         'region': 'ID',  # Must: the region of your scenario
-        'reload': False,  # Must: whether you want to re-fetch samples from CAT server
+        'reload': True,  # Must: whether you want to re-fetch samples from CAT server
         'enabled': True,  # Must: whether you want to parse this scenario
     },
     'push_tracking_id': {
@@ -80,7 +80,7 @@ ALL_SCENARIOS = {
         # 'highlights': [],
         'name': 'push_tracking',
         'region': 'ID',
-        'reload': False,
+        'reload': True,
         'enabled': True,
     },
 }
