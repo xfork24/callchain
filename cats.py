@@ -100,7 +100,7 @@ ALL_SCENARIOS = {
     'pre_fulfillment_id': {
         'entrypoints': [
             # (cat_domain, cat_type, cat_name, sample_count, link_count)
-            ('lps-api-live-id', 'URL.lps-api-live-id', '/api/v3/logistics/checkout/integration/', 30, 30),
+            ('lps-api-live-id', 'URL.lps-api-live-id', '/api/v3/logistics/checkout/integration/', 1, 1),
         ],
         'extra_callchain': [],
         'extra_node_overwrite_rules': {
@@ -152,8 +152,8 @@ ALL_SCENARIOS = {
         # 'highlights': ['/api/sls-basic/freight/calc_esf_weight/', '/api/lls/create_line_waybill'],  #  Optional: highlight stacks contains specific calls
         'name': 'create_order',  # Must: the human-readable name of your scenario
         'region': 'ID',  # Must: the region of your scenario
-        'reload': True,  # Must: whether you want to re-fetch samples from CAT server
-        'enabled': True,  # Must: whether you want to parse this scenario
+        'reload': False,  # Must: whether you want to re-fetch samples from CAT server
+        'enabled': False,  # Must: whether you want to parse this scenario
     },
     'push_tracking_id': {
         'entrypoints': [
@@ -178,8 +178,8 @@ ALL_SCENARIOS = {
         # 'highlights': [],
         'name': 'push_tracking',
         'region': 'ID',
-        'reload': True,
-        'enabled': True,
+        'reload': False,
+        'enabled': False,
     },
 }
 

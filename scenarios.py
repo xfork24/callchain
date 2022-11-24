@@ -1,6 +1,86 @@
 #!./bin/python
 
 ALL_SCENARIOS = {
+    'cancel_order_id': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('LFS-API-LIVE-ID', 'URL.lfs-api-live-id', '/api/sls/standard_cancel', 1, 1),
+        ],
+        'extra_callchain': [],
+        'extra_node_overwrite_rules': {
+            '^api$': '3PL',
+            'ResourceAPI': '3PL'
+        },
+        'extra_edge_overwrite_rules': {},
+        'extra_rename_rules': [
+        ],
+        'extra_delete_rules': [
+            # ('*', '*', '(TrackingOperate|GetTrackingFromLTS|TrackingAssemble)', '*', '*', '*'),
+            # ('*', '*', '\\[ID\\]', '*', '*', '*'),
+        ],
+        # 'highlights': [],
+        'name': 'cancel_order',
+        'region': 'ID',
+        'reload': False,
+        'enabled': True,
+    },
+    'allocate_id': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('lps-fulfillmentapi-live-id', 'URL.lps-fulfillmentapi-live-id', '/api/sls/allocate/', 1, 1),
+        ],
+        'extra_callchain': [],
+        'extra_node_overwrite_rules': {
+        },
+        'extra_edge_overwrite_rules': {},
+        'extra_rename_rules': [
+        ],
+        'extra_delete_rules': [
+        ],
+        # 'highlights': [],
+        'name': 'allocate',
+        'region': 'ID',
+        'reload': False,
+        'enabled': False,
+    },
+    'pdp_integration_id': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('lps-api-live-id', 'URL.lps-api-live-id', '/api/v3/logistics/pdp/integration/', 1, 1),
+        ],
+        'extra_callchain': [],
+        'extra_node_overwrite_rules': {
+        },
+        'extra_edge_overwrite_rules': {},
+        'extra_rename_rules': [
+        ],
+        'extra_delete_rules': [
+        ],
+        # 'highlights': [],
+        'name': 'pdp_integration',
+        'region': 'ID',
+        'reload': False,
+        'enabled': False,
+    },
+    'select_lane_id': {
+        'entrypoints': [
+            # (cat_domain, cat_type, cat_name, sample_count, link_count)
+            ('smartrouting-grpc-live-id', 'URL.smartrouting-grpc-live-id', '/smart_routing_protobuf.SmartRouting/SelectLane', 1, 1),
+        ],
+        'extra_callchain': [],
+        'extra_node_overwrite_rules': {
+        },
+        'extra_edge_overwrite_rules': {},
+        'extra_rename_rules': [
+        ],
+        'extra_delete_rules': [
+        ],
+        # 'highlights': [],
+        'name': 'select_lane',
+        'region': 'ID',
+        'reload': False,
+        'enabled': False,
+    },
     'pre_fulfillment_id': {
         'entrypoints': [
             # (cat_domain, cat_type, cat_name, sample_count, link_count)
@@ -57,7 +137,7 @@ ALL_SCENARIOS = {
         'name': 'create_order',  # Must: the human-readable name of your scenario
         'region': 'ID',  # Must: the region of your scenario
         'reload': False,  # Must: whether you want to re-fetch samples from CAT server
-        'enabled': True,  # Must: whether you want to parse this scenario
+        'enabled': False,  # Must: whether you want to parse this scenario
     },
     'push_tracking_id': {
         'entrypoints': [
